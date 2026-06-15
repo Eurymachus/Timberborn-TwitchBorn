@@ -1,0 +1,9 @@
+{
+  "Name": "TwitchBorn",
+  "Version": "0.1.0",
+  "Id": "Eurymachus.TwitchBorn",
+  "MinimumGameVersion": "1.0.0.0",
+  "Description": "A high quality Twitch Integration mod.",
+  "RequiredMods": [
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "Eurymachus.TwitchBorn",
+  "references": [
+    "Timberborn.Beavers",
+    "Timberborn.Characters",
+    "Timberborn.EntityNaming",
+    "Timberborn.EntitySystem",
+    "Timberborn.Persistence",
+    "Timberborn.SingletonSystem",
+    "Timberborn.WorldPersistence",
+    "Timberborn.InputSystem",
+    "Timberborn.CameraSystem",
+    "Timberborn.CoreUI",
+    "Timberborn.SelectionSystem",
+    "Timberborn.TooltipSystem",
+    "Timberborn.Localization",
+    "ModSettings.Common",
+    "ModSettings.CommonUI",
+    "ModSettings.Core",
+    "ModSettings.CoreUI",
+    "Timberborn.QuickNotificationSystem"
+  ],
+  "autoReferenced": false,
+  "allowUnsafeCode": true
+}
