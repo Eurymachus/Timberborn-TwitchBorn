@@ -8,7 +8,7 @@ using System.Threading;
 using Timberborn.SingletonSystem;
 using TwitchBorn.Core;
 using TwitchBorn.Models;
-using TwitchBorn.Services;
+using TwitchBorn.Api;
 using TwitchBorn.Settings;
 using Timberborn.Localization;
 
@@ -41,7 +41,7 @@ namespace TwitchBorn.Platforms.Twitch
         private readonly PlatformIntegrationSettingsOwner _settingsOwner;
         private readonly TwitchTriggerSettingsOwner _twitchTriggerSettingsOwner;
         private readonly TwitchTriggerMatcher _twitchTriggerMatcher;
-        private readonly PlatformRequestService _platformRequestService;
+        private readonly ITwitchBornApi _twitchBornApi;
         private readonly TwitchAuthService _twitchAuthService;
         private readonly object _queueLock = new object();
         private readonly object _writerLock = new object();
@@ -60,14 +60,14 @@ namespace TwitchBorn.Platforms.Twitch
             PlatformIntegrationSettingsOwner settingsOwner,
             TwitchTriggerSettingsOwner twitchTriggerSettingsOwner,
             TwitchTriggerMatcher twitchTriggerMatcher,
-            PlatformRequestService platformRequestService,
+            ITwitchBornApi twitchBornApi,
             TwitchAuthService twitchAuthService,
             ILoc loc)
         {
             _settingsOwner = settingsOwner;
             _twitchTriggerSettingsOwner = twitchTriggerSettingsOwner;
             _twitchTriggerMatcher = twitchTriggerMatcher;
-            _platformRequestService = platformRequestService;
+            _twitchBornApi = twitchBornApi;
             _twitchAuthService = twitchAuthService;
             _loc = loc;
         }
@@ -454,7 +454,7 @@ namespace TwitchBorn.Platforms.Twitch
                 return;
             }
 
-            _platformRequestService.HandleBeaverSpeech(twitchMessage.Viewer, message);
+            _twitchBornApi.SendSpeech(twitchMessage.Viewer, message);
         }
 
         private string DispatchRequest(
@@ -471,15 +471,15 @@ namespace TwitchBorn.Platforms.Twitch
             switch (match.RequestType)
             {
                 case PlatformRequestType.BeaverClaim:
-                    result = _platformRequestService.HandleBeaverClaim(viewer);
+                    result = _twitchBornApi.ClaimCharacter(viewer);
                     return BuildBeaverCommandReply(result);
 
                 case PlatformRequestType.BeaverStatus:
-                    result = _platformRequestService.HandleBeaverStatus(viewer);
+                    result = _twitchBornApi.GetCharacterStatus(viewer);
                     return BuildBeaverCommandReply(result);
 
                 case PlatformRequestType.BeaverRename:
-                    result = _platformRequestService.HandleBeaverRename(
+                    result = _twitchBornApi.RenameCharacter(
                         viewer,
                         match.Arguments);
                     return BuildBeaverCommandReply(result);
@@ -578,7 +578,7 @@ namespace TwitchBorn.Platforms.Twitch
             return viewer.SafeDisplayName;
         }
 
-        private static TwitchIrcMessage TryParsePrivMsg(string line)
+        private TwitchIrcMessage TryParsePrivMsg(string line)
         {
             var tags = ParseTags(line);
             var userId = GetTag(tags, "user-id");
@@ -598,7 +598,11 @@ namespace TwitchBorn.Platforms.Twitch
                 displayName = loginName;
             }
 
-            var viewer = ViewerIdentity.FromTwitch(userId, loginName, displayName);
+            var viewer = _twitchBornApi.CreateViewerIdentity(
+                ViewerIdentity.TwitchSource,
+                userId,
+                loginName,
+                displayName);
 
             return new TwitchIrcMessage(viewer, message, tags);
         }
