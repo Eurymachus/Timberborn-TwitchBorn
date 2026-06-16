@@ -572,10 +572,11 @@ namespace TwitchBorn.Platforms.Twitch
 
             if (!string.IsNullOrEmpty(viewer.LoginName))
             {
-                return viewer.LoginName;
+                return TwitchBornTextSanitizer.SanitizePlainText(viewer.LoginName, 64);
             }
 
-            return viewer.SafeDisplayName;
+            var plainName = TwitchBornTextSanitizer.SanitizePlainText(viewer.SafeDisplayName, 64);
+            return string.IsNullOrEmpty(plainName) ? "viewer" : plainName;
         }
 
         private TwitchIrcMessage TryParsePrivMsg(string line)

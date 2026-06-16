@@ -1692,23 +1692,7 @@ namespace TwitchBorn.Registry
 
         private static string SanitizeBeaverName(string value)
         {
-            if (value == null)
-            {
-                return "";
-            }
-
-            var sanitized = value.Trim();
-
-            sanitized = sanitized.Replace("\r", "");
-            sanitized = sanitized.Replace("\n", "");
-            sanitized = sanitized.Replace("\t", " ");
-
-            if (sanitized.Length > 24)
-            {
-                sanitized = sanitized.Substring(0, 24);
-            }
-
-            return sanitized;
+            return TwitchBornTextSanitizer.SanitizeBeaverEntityName(value, 24);
         }
 
         private static string NowUtc()

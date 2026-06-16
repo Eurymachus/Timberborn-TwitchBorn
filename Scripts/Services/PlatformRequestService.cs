@@ -56,7 +56,7 @@ namespace TwitchBorn.Services
             _beaverOverlayService.ShowMessage(
                 beaver,
                 result.BeaverName,
-                viewer.SafeDisplayName,
+                GetPlainViewerName(viewer),
                 message ?? "");
 
             return true;
@@ -106,8 +106,8 @@ namespace TwitchBorn.Services
                 _beaverOverlayService.ShowMessage(
                     claimedBeaver,
                     result.BeaverName,
-                    viewer.SafeDisplayName,
-                    _loc.T(ClaimedByLocKey, viewer.SafeDisplayName));
+                    GetPlainViewerName(viewer),
+                    _loc.T(ClaimedByLocKey, GetPlainViewerName(viewer)));
 
                 return result;
             }
@@ -196,7 +196,7 @@ namespace TwitchBorn.Services
                     BeaverCommandResultType.NoClaimedBeaver,
                     viewer,
                     null,
-                    safeName,
+                    TwitchBornTextSanitizer.SanitizePlainText(safeName, 32),
                     "");
             }
 
@@ -208,7 +208,7 @@ namespace TwitchBorn.Services
             _beaverOverlayService.ShowMessage(
                 beaver,
                 result.BeaverName,
-                viewer.SafeDisplayName,
+                GetPlainViewerName(viewer),
                 _loc.T(RenamedToLocKey, result.BeaverName));
 
             return result;
@@ -229,8 +229,19 @@ namespace TwitchBorn.Services
             _beaverOverlayService.ShowMessage(
                 result.Beaver,
                 result.BeaverName,
-                result.Viewer.SafeDisplayName,
-                _loc.T(ClaimedByLocKey, result.Viewer.SafeDisplayName));
+                GetPlainViewerName(result.Viewer),
+                _loc.T(ClaimedByLocKey, GetPlainViewerName(result.Viewer)));
+        }
+
+        private static string GetPlainViewerName(ViewerIdentity viewer)
+        {
+            if (viewer == null)
+            {
+                return "viewer";
+            }
+
+            var plainName = TwitchBornTextSanitizer.SanitizePlainText(viewer.SafeDisplayName, 64);
+            return string.IsNullOrEmpty(plainName) ? "viewer" : plainName;
         }
 
         private BeaverCommandResult CreateResult(

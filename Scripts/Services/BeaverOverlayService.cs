@@ -53,6 +53,12 @@ namespace TwitchBorn.Services
         private static readonly Color NameplateBorderHoverColor = new Color32(226, 210, 145, 240);
         private static readonly Color NameplateBorderSelectedColor = new Color32(118, 196, 255, 230);
 
+        private const float OverlayDistanceSortBucketSize = 0.75f;
+        private const float OverlayAnchorYUpSmoothingSpeed = 24f;
+        private const float OverlayAnchorYDownSmoothingSpeed = 0.35f;
+        private const float OverlayAnchorYTeleportThreshold = 6f;
+        private const float OverlayAnchorYDownDeadZone = 0.85f;
+
         private readonly ILoc _loc;
         private readonly CameraService _cameraService;
         private readonly Underlay _underlay;
@@ -595,6 +601,56 @@ namespace TwitchBorn.Services
             return selectableObject != null && _entitySelectionService.IsSelected(selectableObject);
         }
 
+        private static Vector3 StabilizeOverlayWorldPosition(
+            BeaverOverlay overlay,
+            Vector3 rawWorldPosition)
+        {
+            if (overlay == null)
+            {
+                return rawWorldPosition;
+            }
+
+            if (!overlay.HasSmoothedWorldY)
+            {
+                overlay.SetSmoothedWorldY(rawWorldPosition.y);
+                return rawWorldPosition;
+            }
+
+            var yDelta = rawWorldPosition.y - overlay.SmoothedWorldY;
+            var absoluteYDelta = Mathf.Abs(yDelta);
+
+            if (absoluteYDelta > OverlayAnchorYTeleportThreshold)
+            {
+                overlay.SetSmoothedWorldY(rawWorldPosition.y);
+                return rawWorldPosition;
+            }
+
+            var targetY = rawWorldPosition.y;
+
+            if (yDelta < 0f && absoluteYDelta <= OverlayAnchorYDownDeadZone)
+            {
+                targetY = overlay.SmoothedWorldY;
+            }
+
+            var smoothingSpeed = targetY >= overlay.SmoothedWorldY
+                ? OverlayAnchorYUpSmoothingSpeed
+                : OverlayAnchorYDownSmoothingSpeed;
+
+            var smoothing = 1f - Mathf.Exp(-smoothingSpeed * Time.unscaledDeltaTime);
+
+            var smoothedY = Mathf.Lerp(
+                overlay.SmoothedWorldY,
+                targetY,
+                smoothing);
+
+            overlay.SetSmoothedWorldY(smoothedY);
+
+            return new Vector3(
+                rawWorldPosition.x,
+                smoothedY,
+                rawWorldPosition.z);
+        }
+
         private void UpdateOverlayPositionAndVisibility(BeaverOverlay overlay)
         {
             if (_root == null || _root.panel == null)
@@ -610,7 +666,8 @@ namespace TwitchBorn.Services
                 return;
             }
 
-            var worldPosition = followTarget.position + new Vector3(0f, _settingsOwner.OverlayHeightOffset.Value, 0f);
+            var rawWorldPosition = followTarget.position + new Vector3(0f, _settingsOwner.OverlayHeightOffset.Value, 0f);
+            var worldPosition = StabilizeOverlayWorldPosition(overlay, rawWorldPosition);
 
             if (!_cameraService.IsInFront(worldPosition))
             {
@@ -980,7 +1037,7 @@ namespace TwitchBorn.Services
 
         private void SortOverlayDrawOrder()
         {
-            _overlays.Sort((a, b) => b.DistanceToCamera.CompareTo(a.DistanceToCamera));
+            _overlays.Sort(CompareOverlayDrawOrder);
 
             foreach (var overlay in _overlays)
             {
@@ -989,6 +1046,82 @@ namespace TwitchBorn.Services
                     overlay.Element.BringToFront();
                 }
             }
+        }
+
+        private static int CompareOverlayDrawOrder(BeaverOverlay a, BeaverOverlay b)
+        {
+            if (ReferenceEquals(a, b))
+            {
+                return 0;
+            }
+
+            if (a == null)
+            {
+                return -1;
+            }
+
+            if (b == null)
+            {
+                return 1;
+            }
+
+            var aHasMessage = a.HasActiveMessage;
+            var bHasMessage = b.HasActiveMessage;
+
+            if (aHasMessage != bHasMessage)
+            {
+                return aHasMessage ? 1 : -1;
+            }
+
+            if (aHasMessage)
+            {
+                var messageTimeComparison = a.LastShownAt.CompareTo(b.LastShownAt);
+
+                if (messageTimeComparison != 0)
+                {
+                    return messageTimeComparison;
+                }
+
+                return CompareOverlayNames(a, b);
+            }
+
+            var aDistanceBucket = Mathf.FloorToInt(a.DistanceToCamera / OverlayDistanceSortBucketSize);
+            var bDistanceBucket = Mathf.FloorToInt(b.DistanceToCamera / OverlayDistanceSortBucketSize);
+
+            if (aDistanceBucket != bDistanceBucket)
+            {
+                return bDistanceBucket.CompareTo(aDistanceBucket);
+            }
+
+            return CompareOverlayNames(a, b);
+        }
+
+        private static int CompareOverlayNames(BeaverOverlay a, BeaverOverlay b)
+        {
+            var nameComparison = string.Compare(
+                a.BeaverName ?? "",
+                b.BeaverName ?? "",
+                StringComparison.OrdinalIgnoreCase);
+
+            if (nameComparison != 0)
+            {
+                return nameComparison;
+            }
+
+            var aId = GetOverlayCharacterInstanceId(a);
+            var bId = GetOverlayCharacterInstanceId(b);
+
+            return aId.CompareTo(bId);
+        }
+
+        private static int GetOverlayCharacterInstanceId(BeaverOverlay overlay)
+        {
+            if (overlay == null || overlay.Character == null || overlay.Character.Transform == null)
+            {
+                return 0;
+            }
+
+            return overlay.Character.Transform.GetInstanceID();
         }
 
         private void RemoveOverlayAt(int index)
@@ -1038,23 +1171,7 @@ namespace TwitchBorn.Services
 
         private static string SanitizeText(string value, int maxLength)
         {
-            if (value == null)
-            {
-                return "";
-            }
-
-            var sanitized = value.Trim();
-
-            sanitized = sanitized.Replace("\r", "");
-            sanitized = sanitized.Replace("\n", " ");
-            sanitized = sanitized.Replace("\t", " ");
-
-            if (sanitized.Length > maxLength)
-            {
-                sanitized = sanitized.Substring(0, maxLength);
-            }
-
-            return sanitized;
+            return TwitchBornTextSanitizer.SanitizePlainText(value, maxLength);
         }
 
         private static string WrapText(string text, int maxLineLength)

@@ -5,6 +5,7 @@ using Timberborn.EntitySystem;
 using Timberborn.Localization;
 using Timberborn.SleepSystem;
 using Timberborn.WorkSystem;
+using TwitchBorn.Core;
 
 namespace TwitchBorn.Services
 {
@@ -28,7 +29,7 @@ namespace TwitchBorn.Services
 
             if (beaver.TryGetComponent(out namedEntity) && !string.IsNullOrEmpty(namedEntity.EntityName))
             {
-                return namedEntity.EntityName;
+                return TwitchBornTextSanitizer.SanitizePlainText(namedEntity.EntityName, 32);
             }
 
             return "your beaver";
@@ -65,7 +66,7 @@ namespace TwitchBorn.Services
 
             if (worker.JobRunning)
             {
-                return "working as " + AddIndefiniteArticle(workplaceName);
+                return TwitchBornTextSanitizer.SanitizePlainText("working at " + AddDefiniteArticle(workplaceName), 96);
             }
 
             WorkerWorkingHours workerWorkingHours;
@@ -75,7 +76,7 @@ namespace TwitchBorn.Services
                 return "on a break";
             }
 
-            return "assigned to " + AddIndefiniteArticle(workplaceName);
+            return TwitchBornTextSanitizer.SanitizePlainText("assigned to " + AddDefiniteArticle(workplaceName), 96);
         }
 
         private string GetWorkplaceDisplayName(Workplace workplace)
@@ -128,6 +129,23 @@ namespace TwitchBorn.Services
             }
 
             return "a " + text;
+        }
+        private static string AddDefiniteArticle(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return "the workplace";
+            }
+
+            var trimmed = text.Trim();
+            var lower = trimmed.ToLowerInvariant();
+
+            if (lower.StartsWith("the "))
+            {
+                return trimmed;
+            }
+
+            return "the " + trimmed;
         }
 
         private static string SplitCamelCase(string value)

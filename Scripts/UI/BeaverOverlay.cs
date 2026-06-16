@@ -21,6 +21,8 @@ namespace TwitchBorn.UI
         public float LastShownAt { get; set; }
         public float DistanceToCamera { get; set; }
         public float Expansion { get; set; }
+        public bool HasSmoothedWorldY { get; private set; }
+        public float SmoothedWorldY { get; private set; }
 
         public float AnimatedOverlayWidth { get; set; }
         public float TargetOverlayWidth { get; set; }
@@ -76,6 +78,8 @@ namespace TwitchBorn.UI
             TargetMessageHeight = 0f;
             NeedsSizeMeasurement = false;
             IsHovered = false;
+            HasSmoothedWorldY = false;
+            SmoothedWorldY = 0f;
         }
 
         public void SetDisplayNames(
@@ -94,6 +98,18 @@ namespace TwitchBorn.UI
             {
                 MeasureNameLabel.text = BeaverName;
             }
+        }
+
+        public void SetSmoothedWorldY(float value)
+        {
+            SmoothedWorldY = value;
+            HasSmoothedWorldY = true;
+        }
+
+        public void ResetSmoothedWorldY()
+        {
+            SmoothedWorldY = 0f;
+            HasSmoothedWorldY = false;
         }
 
         public void SetMessage(string message)
