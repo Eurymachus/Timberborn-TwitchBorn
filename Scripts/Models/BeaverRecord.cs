@@ -1,15 +1,16 @@
 using System;
+using System.Collections.Generic;
 
 namespace TwitchBorn.Models
 {
     public class BeaverRecord
     {
         // TwitchBorn's own stable record ID for this beaver assignment.
-        // This is separate from Timberborn's EntityId so the record can survive rerolls/history later.
+        // This is separate from Timberborn's EntityId so the record can survive entity replacement and lifecycle history.
         public Guid BeaverRecordId { get; set; }
 
-        // The unique Timberborn entity ID for the assigned beaver.
-        // This is how we find the actual live in-game beaver.
+        // The unique Timberborn entity ID for the currently bound beaver/character.
+        // This is a runtime pointer to the live in-game character, not the permanent claim identity.
         public Guid EntityId { get; set; }
 
         // The beaver's name before TwitchBorn claimed/renamed it.
@@ -35,5 +36,9 @@ namespace TwitchBorn.Models
 
         // Whether this record currently points to an active/alive beaver.
         public bool IsActive { get; set; }
+
+        // Historical Timberborn entity IDs that have belonged to this TwitchBorn claim.
+        // EntityId remains the current live pointer; this list is for reconciliation/debug/future lifecycle messages.
+        public List<BeaverEntityHistoryEntry> EntityHistory { get; set; } = new List<BeaverEntityHistoryEntry>();
     }
 }

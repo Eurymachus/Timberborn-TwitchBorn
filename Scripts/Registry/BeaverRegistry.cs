@@ -42,6 +42,13 @@ namespace TwitchBorn.Registry
         private static readonly ListKey<int> BeaverRerollCountsKey = new ListKey<int>("BeaverRerollCounts");
         private static readonly ListKey<bool> BeaverIsActiveKey = new ListKey<bool>("BeaverIsActive");
 
+        private static readonly ListKey<Guid> BeaverHistoryRecordIdsKey = new ListKey<Guid>("BeaverHistoryRecordIds");
+        private static readonly ListKey<Guid> BeaverHistoryEntityIdsKey = new ListKey<Guid>("BeaverHistoryEntityIds");
+        private static readonly ListKey<string> BeaverHistoryReasonsKey = new ListKey<string>("BeaverHistoryReasons");
+        private static readonly ListKey<string> BeaverHistoryNamesKey = new ListKey<string>("BeaverHistoryNames");
+        private static readonly ListKey<string> BeaverHistoryRecordedAtUtcKey = new ListKey<string>("BeaverHistoryRecordedAtUtc");
+        private static readonly ListKey<int> BeaverHistoryAgesKey = new ListKey<int>("BeaverHistoryAges");
+
         private static readonly ListKey<string> PendingClaimSourcesKey = new ListKey<string>("PendingClaimSources");
         private static readonly ListKey<string> PendingClaimSourceUserIdsKey = new ListKey<string>("PendingClaimSourceUserIds");
         private static readonly ListKey<string> PendingClaimLoginNamesKey = new ListKey<string>("PendingClaimLoginNames");
@@ -55,6 +62,7 @@ namespace TwitchBorn.Registry
         private readonly Dictionary<string, ViewerRecord> _viewersByKey = new Dictionary<string, ViewerRecord>();
         private readonly Dictionary<Guid, BeaverRecord> _beaversByRecordId = new Dictionary<Guid, BeaverRecord>();
         private readonly Dictionary<Guid, BeaverRecord> _beaversByEntityId = new Dictionary<Guid, BeaverRecord>();
+        private readonly Dictionary<Guid, BeaverRecord> _beaversByHistoricalEntityId = new Dictionary<Guid, BeaverRecord>();
         private readonly List<ActiveBeaver> _activeBeaverCache = new List<ActiveBeaver>();
         private readonly List<ViewerIdentity> _pendingClaims = new List<ViewerIdentity>();
         private readonly HashSet<string> _pendingClaimKeys = new HashSet<string>();
@@ -123,6 +131,12 @@ namespace TwitchBorn.Registry
             var beaverRenameCounts = new List<int>();
             var beaverRerollCounts = new List<int>();
             var beaverIsActive = new List<bool>();
+            var beaverHistoryRecordIds = new List<Guid>();
+            var beaverHistoryEntityIds = new List<Guid>();
+            var beaverHistoryReasons = new List<string>();
+            var beaverHistoryNames = new List<string>();
+            var beaverHistoryRecordedAtUtc = new List<string>();
+            var beaverHistoryAges = new List<int>();
 
             foreach (var beaverRecord in _beaversByRecordId.Values)
             {
@@ -135,6 +149,26 @@ namespace TwitchBorn.Registry
                 beaverRenameCounts.Add(beaverRecord.RenameCount);
                 beaverRerollCounts.Add(beaverRecord.RerollCount);
                 beaverIsActive.Add(beaverRecord.IsActive);
+
+                if (beaverRecord.EntityHistory == null)
+                {
+                    continue;
+                }
+
+                foreach (var historyEntry in beaverRecord.EntityHistory)
+                {
+                    if (historyEntry == null || historyEntry.EntityId == Guid.Empty)
+                    {
+                        continue;
+                    }
+
+                    beaverHistoryRecordIds.Add(beaverRecord.BeaverRecordId);
+                    beaverHistoryEntityIds.Add(historyEntry.EntityId);
+                    beaverHistoryReasons.Add(historyEntry.Reason ?? "");
+                    beaverHistoryNames.Add(historyEntry.NameAtTime ?? "");
+                    beaverHistoryRecordedAtUtc.Add(historyEntry.RecordedAtUtc ?? "");
+                    beaverHistoryAges.Add(historyEntry.AgeAtTime);
+                }
             }
 
             var pendingClaimSources = new List<string>();
@@ -174,6 +208,12 @@ namespace TwitchBorn.Registry
             saver.Set(BeaverRenameCountsKey, beaverRenameCounts);
             saver.Set(BeaverRerollCountsKey, beaverRerollCounts);
             saver.Set(BeaverIsActiveKey, beaverIsActive);
+            saver.Set(BeaverHistoryRecordIdsKey, beaverHistoryRecordIds);
+            saver.Set(BeaverHistoryEntityIdsKey, beaverHistoryEntityIds);
+            saver.Set(BeaverHistoryReasonsKey, beaverHistoryReasons);
+            saver.Set(BeaverHistoryNamesKey, beaverHistoryNames);
+            saver.Set(BeaverHistoryRecordedAtUtcKey, beaverHistoryRecordedAtUtc);
+            saver.Set(BeaverHistoryAgesKey, beaverHistoryAges);
 
             saver.Set(PendingClaimSourcesKey, pendingClaimSources);
             saver.Set(PendingClaimSourceUserIdsKey, pendingClaimSourceUserIds);
@@ -249,7 +289,7 @@ namespace TwitchBorn.Registry
                     return validatedCharacter;
                 }
 
-                existingBeaverRecord.IsActive = false;
+                MarkBeaverRecordStale(existingBeaverRecord, "lost");
                 viewerRecord.BeaverRecordId = Guid.Empty;
 
                 TwitchBornLog.Info("Existing beaver record for " + viewer.SafeDisplayName + " is stale. Registering a new beaver.");
@@ -625,6 +665,7 @@ namespace TwitchBorn.Registry
             if (IsClaimableCharacter(characterCreatedEvent.Character))
             {
                 MarkCacheDirty();
+                TryRebindCreatedCharacter(characterCreatedEvent.Character);
                 ProcessPendingClaims();
             }
         }
@@ -637,9 +678,31 @@ namespace TwitchBorn.Registry
                 return;
             }
 
-            if (IsClaimableCharacter(characterKilledEvent.Character))
+            if (!IsClaimableCharacter(characterKilledEvent.Character))
             {
-                MarkCacheDirty();
+                return;
+            }
+
+            MarkCacheDirty();
+
+            var entityId = GetEntityId(characterKilledEvent.Character);
+
+            if (entityId == Guid.Empty)
+            {
+                return;
+            }
+
+            BeaverRecord beaverRecord;
+
+            if (_beaversByEntityId.TryGetValue(entityId, out beaverRecord))
+            {
+                MarkBeaverRecordStale(beaverRecord, "entity_removed");
+                return;
+            }
+
+            if (_beaversByHistoricalEntityId.TryGetValue(entityId, out beaverRecord))
+            {
+                AddBeaverHistoryEntry(beaverRecord, entityId, "previous_entity_removed", GetCharacterName(characterKilledEvent.Character), characterKilledEvent.Character.Age);
             }
         }
 
@@ -709,6 +772,157 @@ namespace TwitchBorn.Registry
                 GetViewerNameForBeaverRecord(beaverRecord)));
         }
 
+        private void TryRebindCreatedCharacter(Character character)
+        {
+            if (character == null || !character.Alive)
+            {
+                return;
+            }
+
+            var newEntityId = GetEntityId(character);
+
+            if (newEntityId == Guid.Empty)
+            {
+                return;
+            }
+
+            if (_beaversByEntityId.ContainsKey(newEntityId))
+            {
+                return;
+            }
+
+            var characterName = GetCharacterName(character);
+
+            if (string.IsNullOrEmpty(characterName))
+            {
+                return;
+            }
+
+            var beaverRecord = FindRebindCandidateByAssignedName(characterName);
+
+            if (beaverRecord == null)
+            {
+                return;
+            }
+
+            var oldEntityId = beaverRecord.EntityId;
+
+            if (oldEntityId == newEntityId)
+            {
+                return;
+            }
+
+            RebindBeaverRecord(beaverRecord, character, newEntityId, "grow_up_rebind");
+        }
+
+        private BeaverRecord FindRebindCandidateByAssignedName(string characterName)
+        {
+            BeaverRecord candidate = null;
+
+            foreach (var beaverRecord in _beaversByRecordId.Values)
+            {
+                if (beaverRecord == null || string.IsNullOrEmpty(beaverRecord.AssignedName))
+                {
+                    continue;
+                }
+
+                if (!string.Equals(beaverRecord.AssignedName, characterName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (candidate != null)
+                {
+                    return null;
+                }
+
+                candidate = beaverRecord;
+            }
+
+            if (candidate == null)
+            {
+                return null;
+            }
+
+            var currentCharacter = FindActiveBeaverByEntityId(candidate.EntityId);
+
+            if (currentCharacter != null && currentCharacter.Alive && IsCharacterVisiblyActive(currentCharacter))
+            {
+                return null;
+            }
+
+            return candidate;
+        }
+
+        private void RebindBeaverRecord(
+            BeaverRecord beaverRecord,
+            Character character,
+            Guid newEntityId,
+            string reason)
+        {
+            if (beaverRecord == null || character == null || newEntityId == Guid.Empty)
+            {
+                return;
+            }
+
+            var oldEntityId = beaverRecord.EntityId;
+
+            if (oldEntityId != Guid.Empty)
+            {
+                _beaversByEntityId.Remove(oldEntityId);
+                _beaversByHistoricalEntityId[oldEntityId] = beaverRecord;
+            }
+
+            beaverRecord.EntityId = newEntityId;
+            beaverRecord.IsActive = true;
+            beaverRecord.LastSeenAtUtc = NowUtc();
+
+            _beaversByEntityId[newEntityId] = beaverRecord;
+
+            AddBeaverHistoryEntry(beaverRecord, newEntityId, reason, GetCharacterName(character), character.Age);
+
+            var namedEntity = character.GetComponent<NamedEntity>();
+
+            if (namedEntity != null)
+            {
+                EnforceAssignedName(beaverRecord, namedEntity);
+            }
+
+            MarkCacheDirty();
+
+            TwitchBornLog.Info("Rebound claimed beaver " + GetBeaverRecordLabel(beaverRecord) + " from " + oldEntityId + " to " + newEntityId + " via " + reason + ".");
+        }
+
+        private void MarkBeaverRecordStale(BeaverRecord beaverRecord, string reason)
+        {
+            if (beaverRecord == null)
+            {
+                return;
+            }
+
+            if (beaverRecord.EntityId != Guid.Empty)
+            {
+                _beaversByEntityId.Remove(beaverRecord.EntityId);
+                _beaversByHistoricalEntityId[beaverRecord.EntityId] = beaverRecord;
+                AddBeaverHistoryEntry(beaverRecord, beaverRecord.EntityId, reason, beaverRecord.AssignedName, -1);
+            }
+
+            beaverRecord.IsActive = false;
+            beaverRecord.LastSeenAtUtc = NowUtc();
+
+            MarkCacheDirty();
+        }
+
+        private static bool IsCharacterVisiblyActive(Character character)
+        {
+            if (character == null)
+            {
+                return false;
+            }
+
+            return character.GameObject != null && character.GameObject.activeInHierarchy;
+        }
+
         private Character RegisterBeaver(ViewerIdentity viewer, ViewerRecord viewerRecord)
         {
             var safeDisplayName = SanitizeBeaverName(viewer.SafeDisplayName);
@@ -732,6 +946,7 @@ namespace TwitchBorn.Registry
                     safeDisplayName,
                     true);
 
+                AddBeaverHistoryEntry(beaverRecord, entityId, "claimed", namedEntity.EntityName, preNamedCharacter.Age);
                 AddBeaverRecord(beaverRecord);
                 viewerRecord.BeaverRecordId = beaverRecord.BeaverRecordId;
 
@@ -761,6 +976,7 @@ namespace TwitchBorn.Registry
                 safeDisplayName,
                 true);
 
+            AddBeaverHistoryEntry(newBeaverRecord, availableEntityId, "claimed", safeDisplayName, availableCharacter.Age);
             AddBeaverRecord(newBeaverRecord);
             viewerRecord.BeaverRecordId = newBeaverRecord.BeaverRecordId;
 
@@ -782,7 +998,7 @@ namespace TwitchBorn.Registry
 
             if (character == null)
             {
-                beaverRecord.IsActive = false;
+                MarkBeaverRecordStale(beaverRecord, "lost");
                 return null;
             }
 
@@ -790,7 +1006,7 @@ namespace TwitchBorn.Registry
 
             if (!character.Alive)
             {
-                beaverRecord.IsActive = false;
+                MarkBeaverRecordStale(beaverRecord, "entity_removed");
                 TwitchBornLog.Info("Beaver record " + beaverLabel + " points to a dead beaver.");
                 return null;
             }
@@ -995,11 +1211,26 @@ namespace TwitchBorn.Registry
                 return;
             }
 
+            if (beaverRecord.EntityHistory == null)
+            {
+                beaverRecord.EntityHistory = new List<BeaverEntityHistoryEntry>();
+            }
+
             _beaversByRecordId[beaverRecord.BeaverRecordId] = beaverRecord;
 
-            if (beaverRecord.EntityId != Guid.Empty)
+            if (beaverRecord.EntityId != Guid.Empty && beaverRecord.IsActive)
             {
                 _beaversByEntityId[beaverRecord.EntityId] = beaverRecord;
+            }
+
+            foreach (var historyEntry in beaverRecord.EntityHistory)
+            {
+                if (historyEntry == null || historyEntry.EntityId == Guid.Empty || historyEntry.EntityId == beaverRecord.EntityId)
+                {
+                    continue;
+                }
+
+                _beaversByHistoricalEntityId[historyEntry.EntityId] = beaverRecord;
             }
         }
 
@@ -1008,6 +1239,7 @@ namespace TwitchBorn.Registry
             _viewersByKey.Clear();
             _beaversByRecordId.Clear();
             _beaversByEntityId.Clear();
+            _beaversByHistoricalEntityId.Clear();
             _pendingClaims.Clear();
             _pendingClaimKeys.Clear();
 
@@ -1020,6 +1252,9 @@ namespace TwitchBorn.Registry
 
             LoadViewerRecords(loader);
             LoadBeaverRecords(loader);
+            LoadBeaverHistoryRecords(loader);
+            EnsureLoadedBeaverRecordsHaveHistory();
+            RebuildBeaverEntityIndexes();
             LoadPendingClaims(loader);
         }
 
@@ -1103,6 +1338,78 @@ namespace TwitchBorn.Registry
                     IsActive = GetBoolAt(isActive, i)
                 };
 
+                AddBeaverRecord(beaverRecord);
+            }
+        }
+
+        private void LoadBeaverHistoryRecords(IObjectLoader loader)
+        {
+            if (!loader.Has(BeaverHistoryRecordIdsKey))
+            {
+                return;
+            }
+
+            var beaverRecordIds = loader.Get(BeaverHistoryRecordIdsKey);
+            var entityIds = loader.Has(BeaverHistoryEntityIdsKey) ? loader.Get(BeaverHistoryEntityIdsKey) : new List<Guid>();
+            var reasons = loader.Has(BeaverHistoryReasonsKey) ? loader.Get(BeaverHistoryReasonsKey) : new List<string>();
+            var names = loader.Has(BeaverHistoryNamesKey) ? loader.Get(BeaverHistoryNamesKey) : new List<string>();
+            var recordedAtUtc = loader.Has(BeaverHistoryRecordedAtUtcKey) ? loader.Get(BeaverHistoryRecordedAtUtcKey) : new List<string>();
+            var ages = loader.Has(BeaverHistoryAgesKey) ? loader.Get(BeaverHistoryAgesKey) : new List<int>();
+
+            for (var i = 0; i < beaverRecordIds.Count; i++)
+            {
+                var beaverRecordId = GetGuidAt(beaverRecordIds, i);
+                var entityId = GetGuidAt(entityIds, i);
+
+                if (beaverRecordId == Guid.Empty || entityId == Guid.Empty)
+                {
+                    continue;
+                }
+
+                BeaverRecord beaverRecord;
+
+                if (!_beaversByRecordId.TryGetValue(beaverRecordId, out beaverRecord) || beaverRecord == null)
+                {
+                    continue;
+                }
+
+                AddBeaverHistoryEntry(
+                    beaverRecord,
+                    entityId,
+                    GetStringAt(reasons, i),
+                    GetStringAt(names, i),
+                    GetIntAt(ages, i),
+                    GetStringAt(recordedAtUtc, i));
+            }
+        }
+
+        private void EnsureLoadedBeaverRecordsHaveHistory()
+        {
+            foreach (var beaverRecord in _beaversByRecordId.Values)
+            {
+                if (beaverRecord == null || beaverRecord.EntityId == Guid.Empty)
+                {
+                    continue;
+                }
+
+                if (beaverRecord.EntityHistory != null && beaverRecord.EntityHistory.Count > 0)
+                {
+                    continue;
+                }
+
+                AddBeaverHistoryEntry(beaverRecord, beaverRecord.EntityId, "claimed", beaverRecord.AssignedName, -1);
+            }
+        }
+
+        private void RebuildBeaverEntityIndexes()
+        {
+            _beaversByEntityId.Clear();
+            _beaversByHistoricalEntityId.Clear();
+
+            var beaverRecords = new List<BeaverRecord>(_beaversByRecordId.Values);
+
+            foreach (var beaverRecord in beaverRecords)
+            {
                 AddBeaverRecord(beaverRecord);
             }
         }
@@ -1195,6 +1502,11 @@ namespace TwitchBorn.Registry
             foreach (var character in _characterPopulation.Characters)
             {
                 if (!character.Alive)
+                {
+                    continue;
+                }
+
+                if (!IsCharacterVisiblyActive(character))
                 {
                     continue;
                 }
@@ -1335,6 +1647,47 @@ namespace TwitchBorn.Registry
                 RerollCount = 0,
                 IsActive = isActive
             };
+        }
+
+        private static void AddBeaverHistoryEntry(
+            BeaverRecord beaverRecord,
+            Guid entityId,
+            string reason,
+            string nameAtTime,
+            int ageAtTime,
+            string recordedAtUtc = null)
+        {
+            if (beaverRecord == null || entityId == Guid.Empty)
+            {
+                return;
+            }
+
+            if (beaverRecord.EntityHistory == null)
+            {
+                beaverRecord.EntityHistory = new List<BeaverEntityHistoryEntry>();
+            }
+
+            foreach (var existingEntry in beaverRecord.EntityHistory)
+            {
+                if (existingEntry == null)
+                {
+                    continue;
+                }
+
+                if (existingEntry.EntityId == entityId && string.Equals(existingEntry.Reason, reason ?? "", StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+
+            beaverRecord.EntityHistory.Add(new BeaverEntityHistoryEntry
+            {
+                EntityId = entityId,
+                Reason = reason ?? "",
+                NameAtTime = nameAtTime ?? "",
+                RecordedAtUtc = string.IsNullOrEmpty(recordedAtUtc) ? NowUtc() : recordedAtUtc,
+                AgeAtTime = ageAtTime
+            });
         }
 
         private static string SanitizeBeaverName(string value)
