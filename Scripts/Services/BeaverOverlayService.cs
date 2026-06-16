@@ -1,19 +1,20 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using Timberborn.CameraSystem;
 using Timberborn.Characters;
 using Timberborn.CoreUI;
+using Timberborn.InputSystem;
+using Timberborn.Localization;
+using Timberborn.SelectionSystem;
 using Timberborn.SingletonSystem;
-using UnityEngine;
-using UnityEngine.UIElements;
+using Timberborn.TooltipSystem;
 using TwitchBorn.Core;
 using TwitchBorn.Registry;
 using TwitchBorn.Settings;
 using TwitchBorn.UI;
-using Timberborn.SelectionSystem;
-using Timberborn.InputSystem;
-using Timberborn.Localization;
-using Timberborn.TooltipSystem;
+using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace TwitchBorn.Services
 {
@@ -105,14 +106,14 @@ namespace TwitchBorn.Services
             var updater = _updateDriverObject.AddComponent<BeaverOverlayUpdater>();
             updater.Initialize(this);
 
-            TwitchBornLog.Info("[TwitchBorn] claimed beaver overlay service loaded.");
+            TwitchBornLog.Info("Claimed beaver overlay service loaded.");
         }
 
         public void Unload()
         {
             if (_updateDriverObject != null)
             {
-                Object.Destroy(_updateDriverObject);
+                UnityEngine.Object.Destroy(_updateDriverObject);
                 _updateDriverObject = null;
             }
 
@@ -124,7 +125,7 @@ namespace TwitchBorn.Services
 
             _overlays.Clear();
 
-            TwitchBornLog.Info("[TwitchBorn] claimed beaver overlay service unloaded.");
+            TwitchBornLog.Info("Claimed beaver overlay service unloaded.");
         }
 
         private bool ShouldShowMessage(BeaverOverlay overlay)
@@ -145,13 +146,13 @@ namespace TwitchBorn.Services
         {
             if (character == null)
             {
-                TwitchBornLog.Info("[TwitchBorn] Cannot show overlay message because character was null.");
+                TwitchBornLog.Info("Cannot show overlay message because character was null.");
                 return;
             }
 
             if (_root == null)
             {
-                TwitchBornLog.Info("[TwitchBorn] Cannot show overlay message because UI root was null.");
+                TwitchBornLog.Info("Cannot show overlay message because UI root was null.");
                 return;
             }
 
@@ -184,7 +185,7 @@ namespace TwitchBorn.Services
             ApplyOverlayStyle(overlay);
             EnforceMaxActiveMessages();
 
-            TwitchBornLog.Info("[TwitchBorn] Overlay message shown for " + safeBeaverName + " owned by " + safeViewerName + ": " + safeMessage);
+            TwitchBornLog.Info("Overlay message shown for " + safeBeaverName + " owned by " + safeViewerName + ": " + safeMessage);
         }
 
         public void UpdateBubbles()
@@ -575,14 +576,23 @@ namespace TwitchBorn.Services
                 return false;
             }
 
-            SelectableObject selectableObject;
+            SelectableObject selectableObject = null;
 
-            if (!overlay.Character.TryGetComponent(out selectableObject))
+            try
             {
+
+                if (!overlay.Character.TryGetComponent(out selectableObject))
+                {
+                    return false;
+                }
+            }
+            catch (NullReferenceException)
+            {
+                TwitchBornLog.Error("Null reference exception occurred while checking beaver selection.");
                 return false;
             }
 
-            return _entitySelectionService.IsSelected(selectableObject);
+            return selectableObject != null && _entitySelectionService.IsSelected(selectableObject);
         }
 
         private void UpdateOverlayPositionAndVisibility(BeaverOverlay overlay)
