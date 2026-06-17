@@ -1,0 +1,13 @@
+{
+  "KeyBindingSpec": {
+    "Id": "ShowTwitchBornNameplates",
+    "GroupId": "TwitchBorn",
+    "LocKey": "Eurymachus.TwitchBorn.KeyBinding.ShowNameplates",
+    "Order": 0,
+    "AllowOtherModifiers": true
+  },
+  "PrimaryInputBindingSpec": {
+    "Path": "/Keyboard/rightAlt",
+    "InputModifiers": "None"
+  }
+}

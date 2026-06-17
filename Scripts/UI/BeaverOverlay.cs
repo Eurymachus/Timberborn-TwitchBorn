@@ -33,6 +33,8 @@ namespace TwitchBorn.UI
 
         public string BeaverName { get; private set; }
         public string ViewerName { get; private set; }
+        public bool HasNameColor { get; private set; }
+        public Color NameColor { get; private set; }
 
         public bool HasActiveMessage
         {
@@ -53,7 +55,9 @@ namespace TwitchBorn.UI
             VisualElement measureMessageContainer,
             Label measureMessageLabel,
             string beaverName,
-            string viewerName)
+            string viewerName,
+            bool hasNameColor,
+            Color nameColor)
         {
             Character = character;
             Element = element;
@@ -66,6 +70,8 @@ namespace TwitchBorn.UI
             MeasureMessageLabel = measureMessageLabel;
             BeaverName = beaverName ?? "";
             ViewerName = viewerName ?? "";
+            HasNameColor = hasNameColor;
+            NameColor = nameColor;
 
             ExpiresAt = 0f;
             LastShownAt = 0f;
@@ -84,10 +90,14 @@ namespace TwitchBorn.UI
 
         public void SetDisplayNames(
             string beaverName,
-            string viewerName)
+            string viewerName,
+            bool hasNameColor,
+            Color nameColor)
         {
             BeaverName = beaverName ?? "";
             ViewerName = viewerName ?? "";
+            HasNameColor = hasNameColor;
+            NameColor = nameColor;
 
             if (NameLabel != null)
             {
@@ -129,17 +139,39 @@ namespace TwitchBorn.UI
 
         public void Show()
         {
-            if (Element != null)
+            if (Element == null)
             {
-                Element.style.display = DisplayStyle.Flex;
+                return;
             }
+
+            Element.style.display = DisplayStyle.Flex;
+            Element.style.opacity = 1f;
         }
 
         public void Hide()
         {
-            if (Element != null)
+            if (Element == null)
             {
-                Element.style.display = DisplayStyle.None;
+                return;
+            }
+
+            Element.style.display = DisplayStyle.Flex;
+            Element.style.opacity = 0f;
+            Element.pickingMode = PickingMode.Ignore;
+
+            if (NameLabel != null)
+            {
+                NameLabel.pickingMode = PickingMode.Ignore;
+            }
+
+            if (MessageContainer != null)
+            {
+                MessageContainer.pickingMode = PickingMode.Ignore;
+            }
+
+            if (MessageLabel != null)
+            {
+                MessageLabel.pickingMode = PickingMode.Ignore;
             }
         }
 

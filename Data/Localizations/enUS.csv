@@ -89,3 +89,8 @@ Eurymachus.TwitchBorn.Settings.MessageVisibilityDistanceTooltip,Camera distance 
 Eurymachus.TwitchBorn.Settings.MessageDurationSecondsTooltip,How long beaver speech bubbles remain visible after a message.,
 Eurymachus.TwitchBorn.Settings.OverlayHeightOffsetTooltip,Vertical offset above the beaver used for nameplates and speech bubbles.,
 Eurymachus.TwitchBorn.Notification.RenameRejected,Claimed beavers keep their viewer names. Owned by {0}.,
+Eurymachus.TwitchBorn.Settings.AlwaysDisplayNameplates,Always display nameplates,
+Eurymachus.TwitchBorn.Settings.AlwaysDisplayNameplatesTooltip,When enabled claimed beaver nameplates remain visible while idle based on the nameplate visibility distance.,
+KeyBinding.ShowTwitchBornNameplates,Show TwitchBorn nameplates,
+Eurymachus.TwitchBorn.KeyBinding.Group,TwitchBorn,
+Eurymachus.TwitchBorn.KeyBinding.ShowNameplates,Show TwitchBorn nameplates,

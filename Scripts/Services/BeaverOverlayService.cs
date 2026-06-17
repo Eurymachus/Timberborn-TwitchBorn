@@ -4,6 +4,7 @@ using System.Text;
 using Timberborn.CameraSystem;
 using Timberborn.Characters;
 using Timberborn.CoreUI;
+using Timberborn.EntityNaming;
 using Timberborn.InputSystem;
 using Timberborn.Localization;
 using Timberborn.SelectionSystem;
@@ -18,11 +19,12 @@ using UnityEngine.UIElements;
 
 namespace TwitchBorn.Services
 {
-    public class BeaverOverlayService : ILoadableSingleton, IUnloadableSingleton
+    public class BeaverOverlayService : ILoadableSingleton, IUnloadableSingleton, IInputProcessor
     {
         private const int MaxBeaverNameLength = 32;
         private const int MaxViewerNameLength = 32;
         private const string OwnedByLocKey = "Eurymachus.TwitchBorn.Overlay.OwnedBy";
+        private const string ShowNameplatesKey = "ShowTwitchBornNameplates";
 
         private const int OverlayPaddingLeft = 8;
         private const int OverlayPaddingRight = 8;
@@ -44,16 +46,17 @@ namespace TwitchBorn.Services
         private const float OverlayWidthAnimationSpeed = 520f;
         private const float OverlayHeightAnimationSpeed = 220f;
 
-        private static readonly Color OverlayBackgroundColor = new Color32(20, 39, 35, 235);
-        private static readonly Color NameplateBackgroundColor = new Color32(31, 63, 55, 245);
-        private static readonly Color MessageTextColor = new Color32(224, 224, 224, 255);
+        private static readonly Color OverlayBackgroundColor = new Color32(24, 43, 38, 235);
+        private static readonly Color NameplateBackgroundColor = new Color32(34, 68, 58, 248);
+        private static readonly Color MessageTextColor = new Color32(232, 229, 214, 255);
         private static readonly Color NameTextColor = new Color32(235, 235, 235, 255);
-        private static readonly Color OverlayBorderColor = new Color32(178, 156, 108, 255);
-        private static readonly Color NameplateBorderColor = new Color32(116, 147, 128, 180);
-        private static readonly Color NameplateBorderHoverColor = new Color32(226, 210, 145, 240);
-        private static readonly Color NameplateBorderSelectedColor = new Color32(118, 196, 255, 230);
+        private static readonly Color OverlayBorderColor = new Color32(174, 145, 83, 255);
+        private static readonly Color NameplateBorderColor = new Color32(144, 123, 76, 220);
+        private static readonly Color NameplateBorderHoverColor = new Color32(226, 210, 145, 255);
+        private static readonly Color NameplateBorderSelectedColor = new Color32(118, 196, 255, 240);
+        private static readonly Color NameplateLightBackgroundColor = new Color32(154, 145, 104, 248);
 
-        private const float OverlayDistanceSortBucketSize = 0.75f;
+        private const float OverlayDistanceTieThreshold = 0.08f;
         private const float OverlayAnchorYUpSmoothingSpeed = 24f;
         private const float OverlayAnchorYDownSmoothingSpeed = 0.35f;
         private const float OverlayAnchorYTeleportThreshold = 6f;
@@ -68,11 +71,13 @@ namespace TwitchBorn.Services
         private readonly ITooltipRegistrar _tooltipRegistrar;
 
         private readonly InputSettings _inputSettings;
+        private readonly InputService _inputService;
 
         private readonly List<BeaverOverlay> _overlays = new List<BeaverOverlay>();
 
         private VisualElement _root;
         private GameObject _updateDriverObject;
+        private bool _forceNameplatesKeyHeld;
 
         public BeaverOverlayService(
             CameraService cameraService,
@@ -82,6 +87,7 @@ namespace TwitchBorn.Services
             EntitySelectionService entitySelectionService,
             ITooltipRegistrar tooltipRegistrar,
             InputSettings inputSettings,
+            InputService inputService,
             ILoc loc)
         {
             _cameraService = cameraService;
@@ -91,6 +97,7 @@ namespace TwitchBorn.Services
             _entitySelectionService = entitySelectionService;
             _tooltipRegistrar = tooltipRegistrar;
             _inputSettings = inputSettings;
+            _inputService = inputService;
             _loc = loc;
         }
         public void Load()
@@ -111,12 +118,22 @@ namespace TwitchBorn.Services
 
             var updater = _updateDriverObject.AddComponent<BeaverOverlayUpdater>();
             updater.Initialize(this);
+            _inputService.AddInputProcessor(this);
 
             TwitchBornLog.Info("Claimed beaver overlay service loaded.");
         }
 
+        public bool ProcessInput()
+        {
+            _forceNameplatesKeyHeld = ReadForceNameplatesKeyHeld();
+            return false;
+        }
+
         public void Unload()
         {
+            _inputService.RemoveInputProcessor(this);
+            _forceNameplatesKeyHeld = false;
+
             if (_updateDriverObject != null)
             {
                 UnityEngine.Object.Destroy(_updateDriverObject);
@@ -132,6 +149,23 @@ namespace TwitchBorn.Services
             _overlays.Clear();
 
             TwitchBornLog.Info("Claimed beaver overlay service unloaded.");
+        }
+
+        private bool IsForceNameplatesKeyHeld()
+        {
+            return _forceNameplatesKeyHeld;
+        }
+
+        private bool ReadForceNameplatesKeyHeld()
+        {
+            try
+            {
+                return _inputService != null && _inputService.IsKeyHeld(ShowNameplatesKey);
+            }
+            catch (KeyNotFoundException)
+            {
+                return false;
+            }
         }
 
         private bool ShouldShowMessage(BeaverOverlay overlay)
@@ -162,7 +196,12 @@ namespace TwitchBorn.Services
                 return;
             }
 
-            var safeBeaverName = SanitizeText(beaverName, MaxBeaverNameLength);
+            var safeBeaverName = GetOverlayDisplayName(
+                character,
+                beaverName,
+                out var hasNameColor,
+                out var nameColor);
+
             var safeViewerName = SanitizeText(viewerName, MaxViewerNameLength);
             var safeMessage = WrapText(
                 SanitizeText(message, _settingsOwner.MaxMessageLengthSetting.Value),
@@ -172,13 +211,20 @@ namespace TwitchBorn.Services
 
             if (overlay == null)
             {
-                overlay = CreateOverlay(character, safeBeaverName, safeViewerName);
+                overlay = CreateOverlay(
+                    character,
+                    safeBeaverName,
+                    safeViewerName,
+                    hasNameColor,
+                    nameColor);
                 _overlays.Add(overlay);
             }
 
             overlay.SetDisplayNames(
                 safeBeaverName,
-                safeViewerName);
+                safeViewerName,
+                hasNameColor,
+                nameColor);
 
             CaptureCurrentOverlaySize(overlay);
 
@@ -236,21 +282,36 @@ namespace TwitchBorn.Services
 
                 if (overlay == null)
                 {
+                    var newBeaverName = ParseOverlayDisplayName(
+                        target.BeaverName,
+                        target.BeaverName,
+                        out var newHasNameColor,
+                        out var newNameColor);
+
                     overlay = CreateOverlay(
                         target.Character,
-                        SanitizeText(target.BeaverName, MaxBeaverNameLength),
-                        SanitizeText(target.ViewerName, MaxViewerNameLength));
+                        newBeaverName,
+                        SanitizeText(target.ViewerName, MaxViewerNameLength),
+                        newHasNameColor,
+                        newNameColor);
 
                     _overlays.Add(overlay);
                     continue;
                 }
 
-                var safeBeaverName = SanitizeText(target.BeaverName, MaxBeaverNameLength);
+                var safeBeaverName = ParseOverlayDisplayName(
+                    target.BeaverName,
+                    target.BeaverName,
+                    out var hasNameColor,
+                    out var nameColor);
+
                 var safeViewerName = SanitizeText(target.ViewerName, MaxViewerNameLength);
 
                 overlay.SetDisplayNames(
                     safeBeaverName,
-                    safeViewerName);
+                    safeViewerName,
+                    hasNameColor,
+                    nameColor);
             }
         }
 
@@ -263,6 +324,32 @@ namespace TwitchBorn.Services
                 color.g,
                 color.b,
                 alpha / 255f);
+        }
+
+        private static Color GetOverlayNameTextColor(BeaverOverlay overlay)
+        {
+            if (overlay != null && overlay.HasNameColor)
+            {
+                return overlay.NameColor;
+            }
+
+            return NameTextColor;
+        }
+
+        private static Color GetNameplateBackgroundColor(BeaverOverlay overlay)
+        {
+            if (overlay != null && overlay.HasNameColor && IsDarkColor(overlay.NameColor))
+            {
+                return NameplateLightBackgroundColor;
+            }
+
+            return NameplateBackgroundColor;
+        }
+
+        private static bool IsDarkColor(Color color)
+        {
+            var luminance = color.r * 0.299f + color.g * 0.587f + color.b * 0.114f;
+            return luminance < 0.42f;
         }
 
         private void ApplyOverlayStyle(BeaverOverlay overlay)
@@ -298,10 +385,20 @@ namespace TwitchBorn.Services
 
             if (overlay.NameLabel != null)
             {
-                overlay.NameLabel.style.color = NameTextColor;
+                overlay.NameLabel.style.color = GetOverlayNameTextColor(overlay);
+                overlay.NameLabel.style.backgroundColor = GetNameplateBackgroundColor(overlay);
+                overlay.NameLabel.style.unityTextOutlineWidth = 0f;
                 overlay.NameLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
                 overlay.NameLabel.style.whiteSpace = WhiteSpace.NoWrap;
                 overlay.NameLabel.style.fontSize = _settingsOwner.OverlayFontSizeSetting.Value;
+                overlay.NameLabel.style.paddingLeft = 11;
+                overlay.NameLabel.style.paddingRight = 11;
+                overlay.NameLabel.style.paddingTop = 3;
+                overlay.NameLabel.style.paddingBottom = 3;
+                overlay.NameLabel.style.borderTopWidth = 2;
+                overlay.NameLabel.style.borderRightWidth = 2;
+                overlay.NameLabel.style.borderBottomWidth = 2;
+                overlay.NameLabel.style.borderLeftWidth = 2;
 
                 var nameplateBorderColor = NameplateBorderColor;
 
@@ -331,10 +428,10 @@ namespace TwitchBorn.Services
                 overlay.MessageLabel.style.color = MessageTextColor;
                 overlay.MessageLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
 
-                overlay.MessageLabel.style.marginTop = 2;
-                overlay.MessageLabel.style.marginLeft = 4;
-                overlay.MessageLabel.style.marginRight = 4;
-                overlay.MessageLabel.style.marginBottom = 2;
+                overlay.MessageLabel.style.marginTop = 4;
+                overlay.MessageLabel.style.marginLeft = 6;
+                overlay.MessageLabel.style.marginRight = 6;
+                overlay.MessageLabel.style.marginBottom = 4;
 
                 overlay.MessageLabel.style.whiteSpace = WhiteSpace.Normal;
                 overlay.MessageLabel.style.fontSize = Mathf.Max(8, _settingsOwner.OverlayFontSizeSetting.Value - 1);
@@ -386,13 +483,16 @@ namespace TwitchBorn.Services
         private BeaverOverlay CreateOverlay(
             Character character,
             string beaverName,
-            string viewerName)
+            string viewerName,
+            bool hasNameColor,
+            Color nameColor)
         {
             var element = new VisualElement();
             element.name = "BeaverOverlay";
             element.pickingMode = PickingMode.Ignore;
             element.style.position = Position.Absolute;
-            element.style.display = DisplayStyle.None;
+            element.style.display = DisplayStyle.Flex;
+            element.style.opacity = 0f;
             element.style.flexDirection = FlexDirection.Column;
             element.style.alignItems = Align.Center;
             element.style.minWidth = 0;
@@ -404,18 +504,18 @@ namespace TwitchBorn.Services
             nameLabel.pickingMode = PickingMode.Position;
             nameLabel.text = beaverName;
             nameLabel.style.backgroundColor = NameplateBackgroundColor;
-            nameLabel.style.paddingLeft = 10;
-            nameLabel.style.paddingRight = 10;
+            nameLabel.style.paddingLeft = 11;
+            nameLabel.style.paddingRight = 11;
             nameLabel.style.paddingTop = 3;
             nameLabel.style.paddingBottom = 3;
             nameLabel.style.borderTopLeftRadius = 5;
             nameLabel.style.borderTopRightRadius = 5;
             nameLabel.style.borderBottomLeftRadius = 5;
             nameLabel.style.borderBottomRightRadius = 5;
-            nameLabel.style.borderTopWidth = 1;
-            nameLabel.style.borderRightWidth = 1;
-            nameLabel.style.borderBottomWidth = 1;
-            nameLabel.style.borderLeftWidth = 1;
+            nameLabel.style.borderTopWidth = 2;
+            nameLabel.style.borderRightWidth = 2;
+            nameLabel.style.borderBottomWidth = 2;
+            nameLabel.style.borderLeftWidth = 2;
             nameLabel.style.borderTopColor = NameplateBorderColor;
             nameLabel.style.borderRightColor = NameplateBorderColor;
             nameLabel.style.borderBottomColor = NameplateBorderColor;
@@ -492,9 +592,11 @@ namespace TwitchBorn.Services
                 measureMessageContainer,
                 measureMessageLabel,
                 beaverName,
-                viewerName);
+                viewerName,
+                hasNameColor,
+                nameColor);
 
-                RegisterOverlayInteraction(element, overlay);
+            RegisterOverlayInteraction(element, overlay);
                 RegisterOverlayInteraction(nameLabel, overlay);
                 RegisterOverlayTooltip(element, overlay);
                 RegisterOverlayTooltip(nameLabel, overlay);
@@ -677,8 +779,19 @@ namespace TwitchBorn.Services
 
             overlay.DistanceToCamera = Vector3.Distance(Camera.main.transform.position, worldPosition);
 
-            var nameplateVisible = overlay.DistanceToCamera <= _settingsOwner.NameplateVisibilityDistanceSetting.Value;
+            var forceNameplateVisible = IsForceNameplatesKeyHeld();
             var messageVisible = ShouldShowMessage(overlay);
+            var selectedVisible = IsOverlayBeaverSelected(overlay);
+            var passiveNameplateVisible =
+                _settingsOwner.AlwaysDisplayNameplates.Value
+                && overlay.DistanceToCamera <= _settingsOwner.NameplateVisibilityDistanceSetting.Value;
+
+            var nameplateVisible =
+                forceNameplateVisible
+                || selectedVisible
+                || messageVisible
+                || passiveNameplateVisible;
+
             var collapsingMessage = overlay.Expansion > 0.01f;
 
             if (!nameplateVisible && !messageVisible && !collapsingMessage)
@@ -1085,12 +1198,11 @@ namespace TwitchBorn.Services
                 return CompareOverlayNames(a, b);
             }
 
-            var aDistanceBucket = Mathf.FloorToInt(a.DistanceToCamera / OverlayDistanceSortBucketSize);
-            var bDistanceBucket = Mathf.FloorToInt(b.DistanceToCamera / OverlayDistanceSortBucketSize);
+            var distanceDelta = Mathf.Abs(a.DistanceToCamera - b.DistanceToCamera);
 
-            if (aDistanceBucket != bDistanceBucket)
+            if (distanceDelta > OverlayDistanceTieThreshold)
             {
-                return bDistanceBucket.CompareTo(aDistanceBucket);
+                return b.DistanceToCamera.CompareTo(a.DistanceToCamera);
             }
 
             return CompareOverlayNames(a, b);
@@ -1157,6 +1269,75 @@ namespace TwitchBorn.Services
             }
 
             return root;
+        }
+
+        private static string GetOverlayDisplayName(
+            Character character,
+            string fallbackName,
+            out bool hasNameColor,
+            out Color nameColor)
+        {
+            var entityName = GetCharacterEntityName(character);
+
+            if (!string.IsNullOrEmpty(entityName))
+            {
+                return ParseOverlayDisplayName(
+                    entityName,
+                    fallbackName,
+                    out hasNameColor,
+                    out nameColor);
+            }
+
+            return ParseOverlayDisplayName(
+                fallbackName,
+                fallbackName,
+                out hasNameColor,
+                out nameColor);
+        }
+
+        private static string GetCharacterEntityName(Character character)
+        {
+            if (character == null)
+            {
+                return "";
+            }
+
+            NamedEntity namedEntity;
+
+            if (character.TryGetComponent(out namedEntity) && !string.IsNullOrEmpty(namedEntity.EntityName))
+            {
+                return namedEntity.EntityName;
+            }
+
+            return "";
+        }
+
+        private static string ParseOverlayDisplayName(
+            string sourceName,
+            string fallbackName,
+            out bool hasNameColor,
+            out Color nameColor)
+        {
+            hasNameColor = false;
+            nameColor = NameTextColor;
+
+            var plainName = TwitchBornTextSanitizer.SanitizeDisplayName(
+                sourceName,
+                MaxBeaverNameLength,
+                out var hexColor);
+
+            if (string.IsNullOrEmpty(plainName))
+            {
+                plainName = SanitizeText(fallbackName, MaxBeaverNameLength);
+            }
+
+            if (!string.IsNullOrEmpty(hexColor) && ColorUtility.TryParseHtmlString(hexColor, out var parsedColor))
+            {
+                hasNameColor = true;
+                nameColor = parsedColor;
+            }
+
+            return plainName;
         }
 
         private string BuildOwnerTooltip(string viewerName)

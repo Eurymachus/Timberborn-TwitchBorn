@@ -1,0 +1,7 @@
+{
+  "KeyBindingGroupSpec": {
+    "Id": "TwitchBorn",
+    "Order": 120,
+    "LocKey": "Eurymachus.TwitchBorn.KeyBinding.Group"
+  }
+}

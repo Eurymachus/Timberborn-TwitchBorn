@@ -19,6 +19,14 @@ namespace TwitchBorn.Settings
 
         public RangeIntModSetting MessageVisibilityDistanceSetting { get; private set; }
 
+        public ModSetting<bool> AlwaysDisplayNameplates { get; } =
+            new(
+                true,
+                ModSettingDescriptor
+                .CreateLocalized("Eurymachus.TwitchBorn.Settings.AlwaysDisplayNameplates")
+                .SetLocalizedTooltip("Eurymachus.TwitchBorn.Settings.AlwaysDisplayNameplatesTooltip")
+            );
+
         public ModSetting<float> MessageDurationSeconds { get; } =
             new(
                 4.0f,

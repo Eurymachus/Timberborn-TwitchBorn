@@ -49,6 +49,37 @@ namespace TwitchBorn.Core
             return colorTag + plainName;
         }
 
+        public static string SanitizeDisplayName(
+            string value,
+            int maxLength,
+            out string leadingHexColor)
+        {
+            leadingHexColor = "";
+
+            if (value == null)
+            {
+                return "";
+            }
+
+            var trimmed = value.Trim();
+            var nameText = trimmed;
+
+            if (TryExtractLeadingHexColorTag(trimmed, out var colorTag, out nameText))
+            {
+                leadingHexColor = "#" + colorTag.Substring(2, 6);
+                nameText = nameText.TrimStart();
+            }
+
+            var sanitized = CleanSingleLine(StripRichText(nameText));
+
+            if (maxLength >= 0 && sanitized.Length > maxLength)
+            {
+                sanitized = sanitized.Substring(0, maxLength);
+            }
+
+            return sanitized;
+        }
+
         public static string StripRichText(string value)
         {
             if (string.IsNullOrEmpty(value))
