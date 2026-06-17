@@ -214,6 +214,112 @@ namespace TwitchBorn.Services
             return result;
         }
 
+        public BeaverCommandResult HandleViewerNameColour(
+    ViewerIdentity viewer,
+    string requestedColour)
+        {
+            if (viewer == null || !viewer.IsValid)
+            {
+                return new BeaverCommandResult(
+                    BeaverCommandResultType.InvalidViewer,
+                    viewer,
+                    null,
+                    "",
+                    "");
+            }
+
+            if (IsClearStyleRequest(requestedColour))
+            {
+                _beaverRegistry.ClearViewerNameColour(viewer);
+
+                return new BeaverCommandResult(
+                    BeaverCommandResultType.ViewerNameColourCleared,
+                    viewer,
+                    null,
+                    "",
+                    "");
+            }
+
+            string normalizedColour;
+
+            if (!_beaverRegistry.TrySetViewerNameColour(viewer, requestedColour, out normalizedColour))
+            {
+                return new BeaverCommandResult(
+                    BeaverCommandResultType.InvalidRequestedColour,
+                    viewer,
+                    null,
+                    "",
+                    "");
+            }
+
+            return new BeaverCommandResult(
+                BeaverCommandResultType.ViewerNameColourUpdated,
+                viewer,
+                null,
+                normalizedColour,
+                "");
+        }
+
+        public BeaverCommandResult HandleViewerNameShadow(
+            ViewerIdentity viewer,
+            string requestedColour)
+        {
+            if (viewer == null || !viewer.IsValid)
+            {
+                return new BeaverCommandResult(
+                    BeaverCommandResultType.InvalidViewer,
+                    viewer,
+                    null,
+                    "",
+                    "");
+            }
+
+            if (IsClearStyleRequest(requestedColour))
+            {
+                _beaverRegistry.ClearViewerNameShadow(viewer);
+
+                return new BeaverCommandResult(
+                    BeaverCommandResultType.ViewerNameShadowCleared,
+                    viewer,
+                    null,
+                    "",
+                    "");
+            }
+
+            string normalizedColour;
+
+            if (!_beaverRegistry.TrySetViewerNameShadow(viewer, requestedColour, out normalizedColour))
+            {
+                return new BeaverCommandResult(
+                    BeaverCommandResultType.InvalidRequestedColour,
+                    viewer,
+                    null,
+                    "",
+                    "");
+            }
+
+            return new BeaverCommandResult(
+                BeaverCommandResultType.ViewerNameShadowUpdated,
+                viewer,
+                null,
+                normalizedColour,
+                "");
+        }
+
+        private static bool IsClearStyleRequest(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return true;
+            }
+
+            var trimmed = value.Trim();
+
+            return string.Equals(trimmed, "off", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "clear", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimmed, "reset", System.StringComparison.OrdinalIgnoreCase);
+        }
+
         public Character DebugClaimViewerBeaver(ViewerIdentity viewer)
         {
             return _beaverRegistry.ClaimBeaver(viewer);

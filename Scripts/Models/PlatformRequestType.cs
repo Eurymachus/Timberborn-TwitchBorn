@@ -4,6 +4,8 @@ namespace TwitchBorn.Models
     {
         BeaverClaim,
         BeaverStatus,
-        BeaverRename
+        BeaverRename,
+        ViewerNameColour,
+        ViewerNameShadow
     }
 }

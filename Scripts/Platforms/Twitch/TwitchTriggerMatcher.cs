@@ -54,6 +54,26 @@ namespace TwitchBorn.Platforms.Twitch
                 return true;
             }
 
+            if (TryMatchChatTrigger(
+                message,
+                PlatformRequestType.ViewerNameColour,
+                _settingsOwner.ViewerNameColourTriggerText.Value,
+                _settingsOwner.ViewerNameColourIsChannelPointReward.Value,
+                out match))
+            {
+                return true;
+            }
+
+            if (TryMatchChatTrigger(
+                    message,
+                    PlatformRequestType.ViewerNameShadow,
+                    _settingsOwner.ViewerNameShadowTriggerText.Value,
+                    _settingsOwner.ViewerNameShadowIsChannelPointReward.Value,
+                    out match))
+            {
+                return true;
+            }
+
             return false;
         }
 
@@ -67,7 +87,13 @@ namespace TwitchBorn.Platforms.Twitch
                     _settingsOwner.BeaverStatusIsChannelPointReward.Value)
                 || IsConfiguredChannelPointTrigger(
                     _settingsOwner.BeaverRenameTriggerText.Value,
-                    _settingsOwner.BeaverRenameIsChannelPointReward.Value);
+                    _settingsOwner.BeaverRenameIsChannelPointReward.Value)
+                || IsConfiguredChannelPointTrigger(
+                    _settingsOwner.ViewerNameColourTriggerText.Value,
+                    _settingsOwner.ViewerNameColourIsChannelPointReward.Value)
+                || IsConfiguredChannelPointTrigger(
+                    _settingsOwner.ViewerNameShadowTriggerText.Value,
+                    _settingsOwner.ViewerNameShadowIsChannelPointReward.Value);
         }
 
         public bool IsUnhandledCommand(string message)

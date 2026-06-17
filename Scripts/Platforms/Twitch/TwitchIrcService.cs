@@ -37,6 +37,11 @@ namespace TwitchBorn.Platforms.Twitch
         private const string ReplyBeaverStatusLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.BeaverStatus";
         private const string ReplyUnknownBeaverNameLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.UnknownBeaverName";
         private const string ReplyUnknownBeaverStatusLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.UnknownBeaverStatus";
+        private const string ReplyViewerNameColourUpdatedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameColourUpdated";
+        private const string ReplyViewerNameColourClearedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameColourCleared";
+        private const string ReplyViewerNameShadowUpdatedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameShadowUpdated";
+        private const string ReplyViewerNameShadowClearedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameShadowCleared";
+        private const string ReplyInvalidRequestedColourLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.InvalidRequestedColour";
 
         private readonly PlatformIntegrationSettingsOwner _settingsOwner;
         private readonly TwitchTriggerSettingsOwner _twitchTriggerSettingsOwner;
@@ -484,6 +489,18 @@ namespace TwitchBorn.Platforms.Twitch
                         match.Arguments);
                     return BuildBeaverCommandReply(result);
 
+                case PlatformRequestType.ViewerNameColour:
+                    result = _twitchBornApi.SetViewerNameColour(
+                        viewer,
+                        match.Arguments);
+                    return BuildBeaverCommandReply(result);
+
+                case PlatformRequestType.ViewerNameShadow:
+                    result = _twitchBornApi.SetViewerNameShadow(
+                        viewer,
+                        match.Arguments);
+                    return BuildBeaverCommandReply(result);
+
                 default:
                     return "";
             }
@@ -533,6 +550,21 @@ namespace TwitchBorn.Platforms.Twitch
 
                 case BeaverCommandResultType.InvalidRequestedName:
                     return _loc.T(ReplyInvalidRequestedNameLocKey, mention);
+
+                case BeaverCommandResultType.ViewerNameColourUpdated:
+                    return _loc.T(ReplyViewerNameColourUpdatedLocKey, mention, result.BeaverName);
+
+                case BeaverCommandResultType.ViewerNameColourCleared:
+                    return _loc.T(ReplyViewerNameColourClearedLocKey, mention);
+
+                case BeaverCommandResultType.ViewerNameShadowUpdated:
+                    return _loc.T(ReplyViewerNameShadowUpdatedLocKey, mention, result.BeaverName);
+
+                case BeaverCommandResultType.ViewerNameShadowCleared:
+                    return _loc.T(ReplyViewerNameShadowClearedLocKey, mention);
+
+                case BeaverCommandResultType.InvalidRequestedColour:
+                    return _loc.T(ReplyInvalidRequestedColourLocKey, mention);
 
                 default:
                     return "";

@@ -20,6 +20,14 @@ namespace TwitchBorn.Models
         // Guid.Empty means no beaver is currently assigned.
         public Guid BeaverRecordId { get; set; }
 
+        // Optional per-viewer overlay/name colour in #RRGGBB format.
+        // This is viewer style data, not part of the beaver's assigned name.
+        public string NameColorHex { get; set; }
+
+        // Optional per-viewer nameplate shadow colour in #RRGGBB or #RRGGBBAA format.
+        // Empty means use the default overlay shadow colour.
+        public string NameShadowColorHex { get; set; }
+
         // UTC timestamp string for when this viewer was first seen by TwitchBorn.
         public string FirstSeenAtUtc { get; set; }
 

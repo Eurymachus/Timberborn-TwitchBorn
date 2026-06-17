@@ -54,6 +54,16 @@ namespace TwitchBorn.Api
             return _platformRequestService.HandleBeaverRename(viewer, requestedName);
         }
 
+        public BeaverCommandResult SetViewerNameColour(ViewerIdentity viewer, string requestedColour)
+        {
+            return _platformRequestService.HandleViewerNameColour(viewer, requestedColour);
+        }
+
+        public BeaverCommandResult SetViewerNameShadow(ViewerIdentity viewer, string requestedColour)
+        {
+            return _platformRequestService.HandleViewerNameShadow(viewer, requestedColour);
+        }
+
         public BeaverCommandResult SendSpeech(ViewerIdentity viewer, string message)
         {
             var statusResult = _platformRequestService.HandleBeaverStatus(viewer);

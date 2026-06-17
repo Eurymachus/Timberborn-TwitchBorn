@@ -14,6 +14,8 @@ namespace TwitchBorn.Api
         BeaverCommandResult ClaimCharacter(ViewerIdentity viewer);
         BeaverCommandResult GetCharacterStatus(ViewerIdentity viewer);
         BeaverCommandResult RenameCharacter(ViewerIdentity viewer, string requestedName);
+        BeaverCommandResult SetViewerNameColour(ViewerIdentity viewer, string requestedColour);
+        BeaverCommandResult SetViewerNameShadow(ViewerIdentity viewer, string requestedColour);
         BeaverCommandResult SendSpeech(ViewerIdentity viewer, string message);
     }
 }

@@ -38,7 +38,9 @@ namespace TwitchBorn.UI
         public string BeaverName { get; private set; }
         public string ViewerName { get; private set; }
         public bool HasNameColor { get; private set; }
-        public Color NameColor { get; private set; }
+        public Color32 NameColor { get; private set; }
+        public bool HasNameShadowColor { get; private set; }
+        public Color32 NameShadowColor { get; private set; }
 
         public bool HasActiveMessage
         {
@@ -65,7 +67,9 @@ namespace TwitchBorn.UI
             string beaverName,
             string viewerName,
             bool hasNameColor,
-            Color nameColor)
+            Color32 nameColor,
+            bool hasNameShadowColor,
+            Color32 nameShadowColor)
         {
             Character = character;
             Element = element;
@@ -84,6 +88,8 @@ namespace TwitchBorn.UI
             ViewerName = viewerName ?? "";
             HasNameColor = hasNameColor;
             NameColor = nameColor;
+            HasNameShadowColor = hasNameShadowColor;
+            NameShadowColor = nameShadowColor;
 
             ExpiresAt = 0f;
             LastShownAt = 0f;
@@ -104,12 +110,16 @@ namespace TwitchBorn.UI
             string beaverName,
             string viewerName,
             bool hasNameColor,
-            Color nameColor)
+            Color32 nameColor,
+            bool hasNameShadowColor,
+            Color32 nameShadowColor)
         {
             BeaverName = beaverName ?? "";
             ViewerName = viewerName ?? "";
             HasNameColor = hasNameColor;
             NameColor = nameColor;
+            HasNameShadowColor = hasNameShadowColor;
+            NameShadowColor = nameShadowColor;
 
             if (NameLabel != null)
             {

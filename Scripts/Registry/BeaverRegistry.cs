@@ -31,6 +31,8 @@ namespace TwitchBorn.Registry
         private static readonly ListKey<string> ViewerFirstSeenAtUtcKey = new ListKey<string>("ViewerFirstSeenAtUtc");
         private static readonly ListKey<string> ViewerLastSeenAtUtcKey = new ListKey<string>("ViewerLastSeenAtUtc");
         private static readonly ListKey<int> ViewerChatMessageCountsKey = new ListKey<int>("ViewerChatMessageCounts");
+        private static readonly ListKey<string> ViewerNameColorHexesKey = new ListKey<string>("ViewerNameColorHexes");
+        private static readonly ListKey<string> ViewerNameShadowColorHexesKey = new ListKey<string>("ViewerNameShadowColorHexes");
 
         private static readonly ListKey<Guid> BeaverRecordIdsKey = new ListKey<Guid>("BeaverRecordIds");
         private static readonly ListKey<Guid> BeaverEntityIdsKey = new ListKey<Guid>("BeaverEntityIds");
@@ -110,6 +112,8 @@ namespace TwitchBorn.Registry
             var viewerFirstSeenAtUtc = new List<string>();
             var viewerLastSeenAtUtc = new List<string>();
             var viewerChatMessageCounts = new List<int>();
+            var viewerNameColorHexes = new List<string>();
+            var viewerNameShadowColorHexes = new List<string>();
 
             foreach (var viewerRecord in _viewersByKey.Values)
             {
@@ -120,6 +124,8 @@ namespace TwitchBorn.Registry
                 viewerFirstSeenAtUtc.Add(viewerRecord.FirstSeenAtUtc ?? "");
                 viewerLastSeenAtUtc.Add(viewerRecord.LastSeenAtUtc ?? "");
                 viewerChatMessageCounts.Add(viewerRecord.ChatMessageCount);
+                viewerNameColorHexes.Add(viewerRecord.NameColorHex ?? "");
+                viewerNameShadowColorHexes.Add(viewerRecord.NameShadowColorHex ?? "");
             }
 
             var beaverRecordIds = new List<Guid>();
@@ -198,6 +204,8 @@ namespace TwitchBorn.Registry
             saver.Set(ViewerFirstSeenAtUtcKey, viewerFirstSeenAtUtc);
             saver.Set(ViewerLastSeenAtUtcKey, viewerLastSeenAtUtc);
             saver.Set(ViewerChatMessageCountsKey, viewerChatMessageCounts);
+            saver.Set(ViewerNameColorHexesKey, viewerNameColorHexes);
+            saver.Set(ViewerNameShadowColorHexesKey, viewerNameShadowColorHexes);
 
             saver.Set(BeaverRecordIdsKey, beaverRecordIds);
             saver.Set(BeaverEntityIdsKey, beaverEntityIds);
@@ -321,7 +329,7 @@ namespace TwitchBorn.Registry
             string requestedName,
             out string safeName)
         {
-            safeName = SanitizeBeaverName(requestedName);
+            safeName = SanitizeCleanBeaverName(requestedName);
 
             if (viewer == null || !viewer.IsValid)
             {
@@ -374,7 +382,10 @@ namespace TwitchBorn.Registry
             beaverRecord.RenameCount++;
             beaverRecord.LastSeenAtUtc = NowUtc();
 
-            SetEntityNameInternally(beaverRecord.EntityId, namedEntity, safeName);
+            SetEntityNameInternally(
+                beaverRecord.EntityId,
+                namedEntity,
+                BuildStyledEntityName(beaverRecord, viewerRecord));
 
             MarkCacheDirty();
 
@@ -499,6 +510,86 @@ namespace TwitchBorn.Registry
             viewerRecord.DisplayName = viewer.SafeDisplayName;
             viewerRecord.LastSeenAtUtc = NowUtc();
             viewerRecord.ChatMessageCount++;
+        }
+
+        public bool TrySetViewerNameColour(
+            ViewerIdentity viewer,
+            string requestedColour,
+            out string normalizedColour)
+        {
+            normalizedColour = "";
+
+            if (viewer == null || !viewer.IsValid)
+            {
+                return false;
+            }
+
+            if (!TryNormalizeNameColorHex(requestedColour, out normalizedColour))
+            {
+                return false;
+            }
+
+            var viewerRecord = GetOrCreateViewerRecord(viewer);
+            viewerRecord.NameColorHex = normalizedColour;
+            viewerRecord.LastSeenAtUtc = NowUtc();
+
+            EnforceViewerStyledName(viewerRecord);
+            MarkCacheDirty();
+            return true;
+        }
+
+        public void ClearViewerNameColour(ViewerIdentity viewer)
+        {
+            if (viewer == null || !viewer.IsValid)
+            {
+                return;
+            }
+
+            var viewerRecord = GetOrCreateViewerRecord(viewer);
+            viewerRecord.NameColorHex = "";
+            viewerRecord.LastSeenAtUtc = NowUtc();
+
+            EnforceViewerStyledName(viewerRecord);
+            MarkCacheDirty();
+        }
+
+        public bool TrySetViewerNameShadow(
+            ViewerIdentity viewer,
+            string requestedColour,
+            out string normalizedColour)
+        {
+            normalizedColour = "";
+
+            if (viewer == null || !viewer.IsValid)
+            {
+                return false;
+            }
+
+            if (!TryNormalizeShadowColorHex(requestedColour, out normalizedColour))
+            {
+                return false;
+            }
+
+            var viewerRecord = GetOrCreateViewerRecord(viewer);
+            viewerRecord.NameShadowColorHex = normalizedColour;
+            viewerRecord.LastSeenAtUtc = NowUtc();
+
+            MarkCacheDirty();
+            return true;
+        }
+
+        public void ClearViewerNameShadow(ViewerIdentity viewer)
+        {
+            if (viewer == null || !viewer.IsValid)
+            {
+                return;
+            }
+
+            var viewerRecord = GetOrCreateViewerRecord(viewer);
+            viewerRecord.NameShadowColorHex = "";
+            viewerRecord.LastSeenAtUtc = NowUtc();
+
+            MarkCacheDirty();
         }
 
         public bool TryGetClaimedViewerName(
@@ -640,8 +731,10 @@ namespace TwitchBorn.Registry
 
                 targets.Add(new ClaimedBeaverOverlayTarget(
                     character,
-                    beaverName,
-                    string.IsNullOrEmpty(viewerRecord.DisplayName) ? beaverRecord.AssignedName : viewerRecord.DisplayName));
+                    BuildStyledEntityName(beaverRecord, viewerRecord),
+                    string.IsNullOrEmpty(viewerRecord.DisplayName) ? beaverRecord.AssignedName : viewerRecord.DisplayName,
+                    viewerRecord.NameColorHex,
+                    viewerRecord.NameShadowColorHex));
 
                 seenEntityIds.Add(beaverRecord.EntityId);
             }
@@ -1059,7 +1152,7 @@ namespace TwitchBorn.Registry
 
             SetEntityNameInternally(beaverRecord.EntityId, namedEntity, expectedName);
 
-            beaverRecord.AssignedName = expectedName;
+            beaverRecord.AssignedName = SanitizeCleanBeaverName(beaverRecord.AssignedName);
             beaverRecord.RenameCount++;
 
             MarkCacheDirty();
@@ -1081,6 +1174,84 @@ namespace TwitchBorn.Registry
             }
 
             namedEntity.SetEntityName(name);
+        }
+
+        private void EnforceViewerStyledName(ViewerRecord viewerRecord)
+        {
+            if (viewerRecord == null || viewerRecord.BeaverRecordId == Guid.Empty)
+            {
+                return;
+            }
+
+            var beaverRecord = TryGetBeaverRecord(viewerRecord.BeaverRecordId);
+
+            if (beaverRecord == null || beaverRecord.EntityId == Guid.Empty)
+            {
+                return;
+            }
+
+            var character = FindActiveBeaverByEntityId(beaverRecord.EntityId);
+
+            if (character == null)
+            {
+                return;
+            }
+
+            var namedEntity = character.GetComponent<NamedEntity>();
+
+            if (namedEntity == null)
+            {
+                return;
+            }
+
+            EnforceAssignedName(beaverRecord, namedEntity);
+        }
+
+        private ViewerRecord GetViewerRecordForBeaverRecord(BeaverRecord beaverRecord)
+        {
+            if (beaverRecord == null)
+            {
+                return null;
+            }
+
+            foreach (var viewerRecord in _viewersByKey.Values)
+            {
+                if (viewerRecord == null)
+                {
+                    continue;
+                }
+
+                if (viewerRecord.BeaverRecordId == beaverRecord.BeaverRecordId)
+                {
+                    return viewerRecord;
+                }
+            }
+
+            return null;
+        }
+
+        private static string BuildStyledEntityName(BeaverRecord beaverRecord, ViewerRecord viewerRecord)
+        {
+            if (beaverRecord == null)
+            {
+                return "";
+            }
+
+            var cleanName = SanitizeCleanBeaverName(beaverRecord.AssignedName);
+
+            if (string.IsNullOrEmpty(cleanName))
+            {
+                return "";
+            }
+
+            var colourHex = viewerRecord == null ? "" : NormalizeNameColorHexOrEmpty(viewerRecord.NameColorHex);
+
+            if (string.IsNullOrEmpty(colourHex))
+            {
+                return cleanName;
+            }
+
+            return "<#" + colourHex.Substring(1, 6) + ">" + cleanName;
         }
 
         private string GetViewerNameForBeaverRecord(BeaverRecord beaverRecord)
@@ -1178,7 +1349,9 @@ namespace TwitchBorn.Registry
                 BeaverRecordId = Guid.Empty,
                 FirstSeenAtUtc = now,
                 LastSeenAtUtc = now,
-                ChatMessageCount = 0
+                ChatMessageCount = 0,
+                NameColorHex = "",
+                NameShadowColorHex = ""
             };
 
             _viewersByKey[viewerKey] = viewerRecord;
@@ -1272,6 +1445,8 @@ namespace TwitchBorn.Registry
             var firstSeenAtUtc = loader.Has(ViewerFirstSeenAtUtcKey) ? loader.Get(ViewerFirstSeenAtUtcKey) : new List<string>();
             var lastSeenAtUtc = loader.Has(ViewerLastSeenAtUtcKey) ? loader.Get(ViewerLastSeenAtUtcKey) : new List<string>();
             var chatMessageCounts = loader.Has(ViewerChatMessageCountsKey) ? loader.Get(ViewerChatMessageCountsKey) : new List<int>();
+            var nameColorHexes = loader.Has(ViewerNameColorHexesKey) ? loader.Get(ViewerNameColorHexesKey) : new List<string>();
+            var nameShadowColorHexes = loader.Has(ViewerNameShadowColorHexesKey) ? loader.Get(ViewerNameShadowColorHexesKey) : new List<string>();
 
             for (var i = 0; i < sources.Count; i++)
             {
@@ -1291,7 +1466,9 @@ namespace TwitchBorn.Registry
                     BeaverRecordId = GetGuidAt(beaverRecordIds, i),
                     FirstSeenAtUtc = GetStringAt(firstSeenAtUtc, i),
                     LastSeenAtUtc = GetStringAt(lastSeenAtUtc, i),
-                    ChatMessageCount = GetIntAt(chatMessageCounts, i)
+                    ChatMessageCount = GetIntAt(chatMessageCounts, i),
+                    NameColorHex = NormalizeNameColorHexOrEmpty(GetStringAt(nameColorHexes, i)),
+                    NameShadowColorHex = NormalizeShadowColorHexOrEmpty(GetStringAt(nameShadowColorHexes, i))
                 };
 
                 var viewerKey = ViewerIdentity.CreateViewerKey(viewerRecord.Source, viewerRecord.SourceUserId);
@@ -1695,24 +1872,87 @@ namespace TwitchBorn.Registry
             return TwitchBornTextSanitizer.SanitizeBeaverEntityName(value, 24);
         }
 
+        private static string SanitizeCleanBeaverName(string value)
+        {
+            string ignoredHexColor;
+            return TwitchBornTextSanitizer.SanitizeDisplayName(value, 24, out ignoredHexColor);
+        }
+
+        private static bool TryNormalizeNameColorHex(string value, out string normalizedColour)
+        {
+            return TryNormalizeHexColor(value, false, out normalizedColour);
+        }
+
+        private static bool TryNormalizeShadowColorHex(string value, out string normalizedColour)
+        {
+            return TryNormalizeHexColor(value, true, out normalizedColour);
+        }
+
+        private static string NormalizeNameColorHexOrEmpty(string value)
+        {
+            string normalizedColour;
+            return TryNormalizeNameColorHex(value, out normalizedColour) ? normalizedColour : "";
+        }
+
+        private static string NormalizeShadowColorHexOrEmpty(string value)
+        {
+            string normalizedColour;
+            return TryNormalizeShadowColorHex(value, out normalizedColour) ? normalizedColour : "";
+        }
+
+        private static bool TryNormalizeHexColor(
+            string value,
+            bool allowAlpha,
+            out string normalizedColour)
+        {
+            normalizedColour = "";
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var trimmed = value.Trim();
+
+            if (!trimmed.StartsWith("#", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var expectedLength = allowAlpha && trimmed.Length == 9 ? 9 : 7;
+
+            if (trimmed.Length != expectedLength)
+            {
+                return false;
+            }
+
+            for (var i = 1; i < trimmed.Length; i++)
+            {
+                if (!IsHex(trimmed[i]))
+                {
+                    return false;
+                }
+            }
+
+            normalizedColour = trimmed.ToUpperInvariant();
+            return true;
+        }
+
+        private static bool IsHex(char value)
+        {
+            return (value >= '0' && value <= '9')
+                || (value >= 'a' && value <= 'f')
+                || (value >= 'A' && value <= 'F');
+        }
+
         private static string NowUtc()
         {
             return "utc|" + DateTime.UtcNow.ToString("O");
         }
 
-        private static string GetExpectedBeaverName(BeaverRecord beaverRecord)
+        private string GetExpectedBeaverName(BeaverRecord beaverRecord)
         {
-            if (beaverRecord == null)
-            {
-                return "";
-            }
-
-            if (!string.IsNullOrEmpty(beaverRecord.AssignedName))
-            {
-                return SanitizeBeaverName(beaverRecord.AssignedName);
-            }
-
-            return "";
+            return BuildStyledEntityName(beaverRecord, GetViewerRecordForBeaverRecord(beaverRecord));
         }
 
         private static string GetStringAt(List<string> values, int index)

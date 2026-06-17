@@ -12,6 +12,11 @@ namespace TwitchBorn.Models
         Status,
         Renamed,
         NoClaimedBeaver,
-        InvalidRequestedName
+        InvalidRequestedName,
+        ViewerNameColourUpdated,
+        ViewerNameColourCleared,
+        ViewerNameShadowUpdated,
+        ViewerNameShadowCleared,
+        InvalidRequestedColour
     }
 }
