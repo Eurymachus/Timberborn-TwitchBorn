@@ -94,3 +94,5 @@ Eurymachus.TwitchBorn.Settings.AlwaysDisplayNameplatesTooltip,When enabled claim
 KeyBinding.ShowTwitchBornNameplates,Show TwitchBorn nameplates,
 Eurymachus.TwitchBorn.KeyBinding.Group,TwitchBorn,
 Eurymachus.TwitchBorn.KeyBinding.ShowNameplates,Show TwitchBorn nameplates,
+Eurymachus.TwitchBorn.Settings.NameplateShadowEnabled,Show nameplate shadows,
+Eurymachus.TwitchBorn.Settings.NameplateShadowEnabledTooltip,Add drop shadow to nameplate text and allow viewers to change this shadow,

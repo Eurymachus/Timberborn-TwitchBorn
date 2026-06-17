@@ -31,8 +31,23 @@ namespace TwitchBorn.Services
         private const int OverlayPaddingTop = 4;
         private const int OverlayPaddingBottom = 4;
 
-        private const int OverlayBorderRadius = 7;
+        private const int OverlayFramePadding = 2;
+        private const int NameplateBodyPaddingLeft = 11;
+        private const int NameplateBodyPaddingRight = 11;
+        private const int NameplateBodyPaddingTop = 3;
+        private const int NameplateBodyPaddingBottom = 3;
+
         private const int OverlayBorderWidth = 2;
+
+        private const string FrameBackgroundResourcePath = "UI/Images/Backgrounds/bg-4";
+        private const string BodyBackgroundResourcePath = "UI/Images/Backgrounds/bg-3";
+        private const string NameplateBackgroundResourcePath = "UI/Images/Backgrounds/bg-3";
+        private const int FrameBackgroundSlice = 16;
+        private const int BodyBackgroundSlice = 9;
+        private const int NameplateBackgroundSlice = 9;
+        private const float FrameBackgroundSliceScale = 0.5f;
+        private const float BodyBackgroundSliceScale = 0.5f;
+        private const float NameplateBackgroundSliceScale = 0.5f;
 
         private const float OverlayFallbackWidth = 130f;
         private const float OverlayFallbackHeight = 28f;
@@ -46,15 +61,15 @@ namespace TwitchBorn.Services
         private const float OverlayWidthAnimationSpeed = 520f;
         private const float OverlayHeightAnimationSpeed = 220f;
 
-        private static readonly Color OverlayBackgroundColor = new Color32(24, 43, 38, 235);
-        private static readonly Color NameplateBackgroundColor = new Color32(34, 68, 58, 248);
+        private static readonly Color OverlayFrameTint = new Color32(255, 255, 255, 255);
+        private static readonly Color OverlayBodyTint = new Color32(255, 255, 255, 255);
+        private static readonly Color NameplateBodyTint = new Color32(255, 255, 255, 255);
         private static readonly Color MessageTextColor = new Color32(232, 229, 214, 255);
         private static readonly Color NameTextColor = new Color32(235, 235, 235, 255);
-        private static readonly Color OverlayBorderColor = new Color32(174, 145, 83, 255);
-        private static readonly Color NameplateBorderColor = new Color32(144, 123, 76, 220);
-        private static readonly Color NameplateBorderHoverColor = new Color32(226, 210, 145, 255);
-        private static readonly Color NameplateBorderSelectedColor = new Color32(118, 196, 255, 240);
-        private static readonly Color NameplateLightBackgroundColor = new Color32(154, 145, 104, 248);
+        private static readonly Color NameplateFrameTint = new Color32(255, 255, 255, 255);
+        private static readonly Color NameplateFrameHoverTint = new Color32(255, 243, 178, 255);
+        private static readonly Color NameplateFrameSelectedTint = new Color32(160, 218, 255, 255);
+        private static readonly Color NameplateLightBodyTint = new Color32(255, 244, 190, 255);
 
         private const float OverlayDistanceTieThreshold = 0.08f;
         private const float OverlayAnchorYUpSmoothingSpeed = 24f;
@@ -336,14 +351,14 @@ namespace TwitchBorn.Services
             return NameTextColor;
         }
 
-        private static Color GetNameplateBackgroundColor(BeaverOverlay overlay)
+        private static Color GetNameplateBodyTint(BeaverOverlay overlay)
         {
             if (overlay != null && overlay.HasNameColor && IsDarkColor(overlay.NameColor))
             {
-                return NameplateLightBackgroundColor;
+                return NameplateLightBodyTint;
             }
 
-            return NameplateBackgroundColor;
+            return NameplateBodyTint;
         }
 
         private static bool IsDarkColor(Color color)
@@ -360,78 +375,128 @@ namespace TwitchBorn.Services
             }
 
             var shellAlpha = overlay.Expansion;
+            var shellAlphaByte = Mathf.RoundToInt(255f * shellAlpha);
+            var shellPadding = Mathf.RoundToInt(OverlayFramePadding * shellAlpha);
+            var bodyPaddingLeft = Mathf.RoundToInt(OverlayPaddingLeft * shellAlpha);
+            var bodyPaddingRight = Mathf.RoundToInt(OverlayPaddingRight * shellAlpha);
+            var bodyPaddingTop = Mathf.RoundToInt(OverlayPaddingTop * shellAlpha);
+            var bodyPaddingBottom = Mathf.RoundToInt(OverlayPaddingBottom * shellAlpha);
 
-            overlay.Element.style.backgroundColor = WithAlpha(OverlayBackgroundColor, Mathf.RoundToInt(235f * shellAlpha));
+            overlay.Element.style.backgroundColor = Color.clear;
+            overlay.Element.style.paddingLeft = 0;
+            overlay.Element.style.paddingRight = 0;
+            overlay.Element.style.paddingTop = 0;
+            overlay.Element.style.paddingBottom = 0;
 
-            overlay.Element.style.paddingLeft = Mathf.RoundToInt(OverlayPaddingLeft * shellAlpha);
-            overlay.Element.style.paddingRight = Mathf.RoundToInt(OverlayPaddingRight * shellAlpha);
-            overlay.Element.style.paddingTop = Mathf.RoundToInt(OverlayPaddingTop * shellAlpha);
-            overlay.Element.style.paddingBottom = Mathf.RoundToInt(OverlayPaddingBottom * shellAlpha);
-
-            overlay.Element.style.borderTopLeftRadius = OverlayBorderRadius;
-            overlay.Element.style.borderTopRightRadius = OverlayBorderRadius;
-            overlay.Element.style.borderBottomLeftRadius = OverlayBorderRadius;
-            overlay.Element.style.borderBottomRightRadius = OverlayBorderRadius;
-
-            overlay.Element.style.borderTopWidth = Mathf.RoundToInt(OverlayBorderWidth * shellAlpha);
-            overlay.Element.style.borderRightWidth = Mathf.RoundToInt(OverlayBorderWidth * shellAlpha);
-            overlay.Element.style.borderBottomWidth = Mathf.RoundToInt(OverlayBorderWidth * shellAlpha);
-            overlay.Element.style.borderLeftWidth = Mathf.RoundToInt(OverlayBorderWidth * shellAlpha);
-
-            overlay.Element.style.borderTopColor = WithAlpha(OverlayBorderColor, Mathf.RoundToInt(255f * shellAlpha));
-            overlay.Element.style.borderRightColor = WithAlpha(OverlayBorderColor, Mathf.RoundToInt(255f * shellAlpha));
-            overlay.Element.style.borderBottomColor = WithAlpha(OverlayBorderColor, Mathf.RoundToInt(255f * shellAlpha));
-            overlay.Element.style.borderLeftColor = WithAlpha(OverlayBorderColor, Mathf.RoundToInt(255f * shellAlpha));
-
-            if (overlay.NameLabel != null)
+            if (overlay.OuterFrame != null)
             {
-                overlay.NameLabel.style.color = GetOverlayNameTextColor(overlay);
-                overlay.NameLabel.style.backgroundColor = GetNameplateBackgroundColor(overlay);
-                overlay.NameLabel.style.unityTextOutlineWidth = 0f;
-                overlay.NameLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
-                overlay.NameLabel.style.whiteSpace = WhiteSpace.NoWrap;
-                overlay.NameLabel.style.fontSize = _settingsOwner.OverlayFontSizeSetting.Value;
-                overlay.NameLabel.style.paddingLeft = 11;
-                overlay.NameLabel.style.paddingRight = 11;
-                overlay.NameLabel.style.paddingTop = 3;
-                overlay.NameLabel.style.paddingBottom = 3;
-                overlay.NameLabel.style.borderTopWidth = 2;
-                overlay.NameLabel.style.borderRightWidth = 2;
-                overlay.NameLabel.style.borderBottomWidth = 2;
-                overlay.NameLabel.style.borderLeftWidth = 2;
+                overlay.OuterFrame.style.paddingLeft = shellPadding;
+                overlay.OuterFrame.style.paddingRight = shellPadding;
+                overlay.OuterFrame.style.paddingTop = shellPadding;
+                overlay.OuterFrame.style.paddingBottom = shellPadding;
+                overlay.OuterFrame.style.alignSelf = Align.Center;
+                overlay.OuterFrame.style.width = overlay.Expansion > 0.01f
+                    ? Length.Percent(100)
+                    : StyleKeyword.Auto;
 
-                var nameplateBorderColor = NameplateBorderColor;
+                SetNineSliceTint(overlay.OuterFrame, WithAlpha(OverlayFrameTint, shellAlphaByte));
+            }
+
+            if (overlay.OuterBody != null)
+            {
+                overlay.OuterBody.style.paddingLeft = bodyPaddingLeft;
+                overlay.OuterBody.style.paddingRight = bodyPaddingRight;
+                overlay.OuterBody.style.paddingTop = bodyPaddingTop;
+                overlay.OuterBody.style.paddingBottom = bodyPaddingBottom;
+                overlay.OuterBody.style.alignItems = Align.Center;
+                overlay.OuterBody.style.width = overlay.Expansion > 0.01f
+                    ? Length.Percent(100)
+                    : StyleKeyword.Auto;
+
+                SetNineSliceTint(overlay.OuterBody, WithAlpha(OverlayBodyTint, shellAlphaByte));
+            }
+
+            if (overlay.NameplateFrame != null)
+            {
+                overlay.NameplateFrame.style.paddingLeft = OverlayFramePadding;
+                overlay.NameplateFrame.style.paddingRight = OverlayFramePadding;
+                overlay.NameplateFrame.style.paddingTop = OverlayFramePadding;
+                overlay.NameplateFrame.style.paddingBottom = OverlayFramePadding;
+                overlay.NameplateFrame.style.alignSelf = Align.Center;
+
+                var nameplateFrameTint = NameplateFrameTint;
 
                 if (IsOverlayBeaverSelected(overlay))
                 {
-                    nameplateBorderColor = NameplateBorderSelectedColor;
+                    nameplateFrameTint = NameplateFrameSelectedTint;
                 }
 
                 if (overlay.IsHovered)
                 {
-                    nameplateBorderColor = NameplateBorderHoverColor;
+                    nameplateFrameTint = NameplateFrameHoverTint;
                 }
 
-                overlay.NameLabel.style.borderTopColor = nameplateBorderColor;
-                overlay.NameLabel.style.borderRightColor = nameplateBorderColor;
-                overlay.NameLabel.style.borderBottomColor = nameplateBorderColor;
-                overlay.NameLabel.style.borderLeftColor = nameplateBorderColor;
+                SetNineSliceTint(overlay.NameplateFrame, nameplateFrameTint);
+            }
+
+            if (overlay.NameplateBody != null)
+            {
+                overlay.NameplateBody.style.paddingLeft = NameplateBodyPaddingLeft;
+                overlay.NameplateBody.style.paddingRight = NameplateBodyPaddingRight;
+                overlay.NameplateBody.style.paddingTop = NameplateBodyPaddingTop;
+                overlay.NameplateBody.style.paddingBottom = NameplateBodyPaddingBottom;
+                SetNineSliceTint(overlay.NameplateBody, GetNameplateBodyTint(overlay));
+            }
+
+            if (overlay.NameLabel != null)
+            {
+                overlay.NameLabel.style.color = GetOverlayNameTextColor(overlay);
+                overlay.NameLabel.style.backgroundColor = Color.clear;
+                overlay.NameLabel.style.unityTextOutlineWidth = 0f;
+                if (_settingsOwner.NameplateShadowEnabled.Value)
+                {
+                    overlay.NameLabel.style.textShadow = new TextShadow
+                    {
+                        offset = new Vector2(1f, 1f),
+                        blurRadius = 1f,
+                        color = new Color32(0, 0, 0, 190)
+                    };
+                }
+                overlay.NameLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+                overlay.NameLabel.style.whiteSpace = WhiteSpace.NoWrap;
+                overlay.NameLabel.style.fontSize = _settingsOwner.OverlayFontSizeSetting.Value;
+                overlay.NameLabel.style.paddingLeft = 0;
+                overlay.NameLabel.style.paddingRight = 0;
+                overlay.NameLabel.style.paddingTop = 0;
+                overlay.NameLabel.style.paddingBottom = 0;
+                overlay.NameLabel.style.borderTopWidth = 0;
+                overlay.NameLabel.style.borderRightWidth = 0;
+                overlay.NameLabel.style.borderBottomWidth = 0;
+                overlay.NameLabel.style.borderLeftWidth = 0;
             }
 
             if (overlay.MessageContainer != null)
             {
                 overlay.MessageContainer.style.overflow = Overflow.Hidden;
+                overlay.MessageContainer.style.marginTop = Mathf.RoundToInt(8f * shellAlpha);
+                overlay.MessageContainer.style.width = Length.Percent(100);
             }
 
             if (overlay.MessageLabel != null)
             {
                 overlay.MessageLabel.style.color = MessageTextColor;
+                overlay.MessageLabel.style.backgroundColor = Color.clear;
                 overlay.MessageLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
 
-                overlay.MessageLabel.style.marginTop = 4;
-                overlay.MessageLabel.style.marginLeft = 6;
-                overlay.MessageLabel.style.marginRight = 6;
-                overlay.MessageLabel.style.marginBottom = 4;
+                overlay.MessageLabel.style.marginTop = 0;
+                overlay.MessageLabel.style.marginLeft = 0;
+                overlay.MessageLabel.style.marginRight = 0;
+                overlay.MessageLabel.style.marginBottom = 0;
+
+                overlay.MessageLabel.style.paddingLeft = 0;
+                overlay.MessageLabel.style.paddingRight = 0;
+                overlay.MessageLabel.style.paddingTop = 0;
+                overlay.MessageLabel.style.paddingBottom = 0;
 
                 overlay.MessageLabel.style.whiteSpace = WhiteSpace.Normal;
                 overlay.MessageLabel.style.fontSize = Mathf.Max(8, _settingsOwner.OverlayFontSizeSetting.Value - 1);
@@ -439,6 +504,18 @@ namespace TwitchBorn.Services
             }
 
             ApplyMeasureStyle(overlay);
+        }
+
+        private static void SetNineSliceTint(VisualElement element, Color tint)
+        {
+            var nineSliceElement = element as TwitchBornNineSliceVisualElement;
+
+            if (nineSliceElement == null)
+            {
+                return;
+            }
+
+            nineSliceElement.SetTint(tint);
         }
 
         private void ApplyMeasureStyle(BeaverOverlay overlay)
@@ -481,11 +558,11 @@ namespace TwitchBorn.Services
         }
 
         private BeaverOverlay CreateOverlay(
-            Character character,
-            string beaverName,
-            string viewerName,
-            bool hasNameColor,
-            Color nameColor)
+    Character character,
+    string beaverName,
+    string viewerName,
+    bool hasNameColor,
+    Color nameColor)
         {
             var element = new VisualElement();
             element.name = "BeaverOverlay";
@@ -498,28 +575,73 @@ namespace TwitchBorn.Services
             element.style.minWidth = 0;
             element.style.maxWidth = OverlayMaxMessageWidth;
             element.style.alignSelf = Align.FlexStart;
+            element.style.backgroundColor = Color.clear;
+
+            var outerFrame = new TwitchBornNineSliceVisualElement();
+            outerFrame.name = "ClaimedBeaverOuterFrame";
+            outerFrame.pickingMode = PickingMode.Ignore;
+            outerFrame.SetBackground(
+                FrameBackgroundResourcePath,
+                FrameBackgroundSlice,
+                FrameBackgroundSliceScale);
+            outerFrame.style.flexDirection = FlexDirection.Column;
+            outerFrame.style.alignSelf = Align.Center;
+            outerFrame.style.alignItems = Align.Center;
+            outerFrame.style.paddingLeft = 0;
+            outerFrame.style.paddingRight = 0;
+            outerFrame.style.paddingTop = 0;
+            outerFrame.style.paddingBottom = 0;
+
+            var outerBody = new TwitchBornNineSliceVisualElement();
+            outerBody.name = "ClaimedBeaverOuterBody";
+            outerBody.pickingMode = PickingMode.Ignore;
+            outerBody.SetBackground(
+                BodyBackgroundResourcePath,
+                BodyBackgroundSlice,
+                BodyBackgroundSliceScale);
+            outerBody.style.flexDirection = FlexDirection.Column;
+            outerBody.style.alignItems = Align.Center;
+            outerBody.style.paddingLeft = 0;
+            outerBody.style.paddingRight = 0;
+            outerBody.style.paddingTop = 0;
+            outerBody.style.paddingBottom = 0;
+
+            var nameplateFrame = new TwitchBornNineSliceVisualElement();
+            nameplateFrame.name = "ClaimedBeaverNameplateFrame";
+            nameplateFrame.pickingMode = PickingMode.Position;
+            nameplateFrame.SetBackground(
+                FrameBackgroundResourcePath,
+                FrameBackgroundSlice,
+                FrameBackgroundSliceScale);
+            nameplateFrame.style.flexDirection = FlexDirection.Column;
+            nameplateFrame.style.alignSelf = Align.Center;
+            nameplateFrame.style.paddingLeft = OverlayFramePadding;
+            nameplateFrame.style.paddingRight = OverlayFramePadding;
+            nameplateFrame.style.paddingTop = OverlayFramePadding;
+            nameplateFrame.style.paddingBottom = OverlayFramePadding;
+
+            var nameplateBody = new TwitchBornNineSliceVisualElement();
+            nameplateBody.name = "ClaimedBeaverNameplateBody";
+            nameplateBody.pickingMode = PickingMode.Ignore;
+            nameplateBody.SetBackground(
+                NameplateBackgroundResourcePath,
+                NameplateBackgroundSlice,
+                NameplateBackgroundSliceScale);
+            nameplateBody.style.flexDirection = FlexDirection.Column;
+            nameplateBody.style.paddingLeft = NameplateBodyPaddingLeft;
+            nameplateBody.style.paddingRight = NameplateBodyPaddingRight;
+            nameplateBody.style.paddingTop = NameplateBodyPaddingTop;
+            nameplateBody.style.paddingBottom = NameplateBodyPaddingBottom;
 
             var nameLabel = new Label();
             nameLabel.name = "ClaimedBeaverNameplate";
-            nameLabel.pickingMode = PickingMode.Position;
+            nameLabel.pickingMode = PickingMode.Ignore;
             nameLabel.text = beaverName;
-            nameLabel.style.backgroundColor = NameplateBackgroundColor;
-            nameLabel.style.paddingLeft = 11;
-            nameLabel.style.paddingRight = 11;
-            nameLabel.style.paddingTop = 3;
-            nameLabel.style.paddingBottom = 3;
-            nameLabel.style.borderTopLeftRadius = 5;
-            nameLabel.style.borderTopRightRadius = 5;
-            nameLabel.style.borderBottomLeftRadius = 5;
-            nameLabel.style.borderBottomRightRadius = 5;
-            nameLabel.style.borderTopWidth = 2;
-            nameLabel.style.borderRightWidth = 2;
-            nameLabel.style.borderBottomWidth = 2;
-            nameLabel.style.borderLeftWidth = 2;
-            nameLabel.style.borderTopColor = NameplateBorderColor;
-            nameLabel.style.borderRightColor = NameplateBorderColor;
-            nameLabel.style.borderBottomColor = NameplateBorderColor;
-            nameLabel.style.borderLeftColor = NameplateBorderColor;
+            nameLabel.style.backgroundColor = Color.clear;
+            nameLabel.style.paddingLeft = 0;
+            nameLabel.style.paddingRight = 0;
+            nameLabel.style.paddingTop = 0;
+            nameLabel.style.paddingBottom = 0;
 
             var messageContainer = new VisualElement();
             messageContainer.name = "ClaimedBeaverMessageContainer";
@@ -527,18 +649,24 @@ namespace TwitchBorn.Services
             messageContainer.style.overflow = Overflow.Hidden;
             messageContainer.style.height = 0;
             messageContainer.style.opacity = 0;
-            messageContainer.style.marginTop = 3;
+            messageContainer.style.marginTop = 0;
             messageContainer.style.flexDirection = FlexDirection.Column;
+            messageContainer.style.width = Length.Percent(100);
 
             var messageLabel = new Label();
             messageLabel.name = "ClaimedBeaverMessage";
             messageLabel.pickingMode = PickingMode.Ignore;
             messageLabel.style.maxWidth = MessageMaxTextWidth;
             messageLabel.style.whiteSpace = WhiteSpace.Normal;
+            messageLabel.style.backgroundColor = Color.clear;
 
+            nameplateBody.Add(nameLabel);
+            nameplateFrame.Add(nameplateBody);
             messageContainer.Add(messageLabel);
-            element.Add(nameLabel);
-            element.Add(messageContainer);
+            outerBody.Add(nameplateFrame);
+            outerBody.Add(messageContainer);
+            outerFrame.Add(outerBody);
+            element.Add(outerFrame);
 
             _root.Add(element);
 
@@ -558,10 +686,10 @@ namespace TwitchBorn.Services
             measureNameLabel.name = "ClaimedBeaverNameplateMeasure";
             measureNameLabel.pickingMode = PickingMode.Ignore;
             measureNameLabel.text = beaverName;
-            measureNameLabel.style.paddingLeft = 10;
-            measureNameLabel.style.paddingRight = 10;
-            measureNameLabel.style.paddingTop = 3;
-            measureNameLabel.style.paddingBottom = 3;
+            measureNameLabel.style.paddingLeft = NameplateBodyPaddingLeft + OverlayFramePadding;
+            measureNameLabel.style.paddingRight = NameplateBodyPaddingRight + OverlayFramePadding;
+            measureNameLabel.style.paddingTop = NameplateBodyPaddingTop + OverlayFramePadding;
+            measureNameLabel.style.paddingBottom = NameplateBodyPaddingBottom + OverlayFramePadding;
 
             var measureMessageContainer = new VisualElement();
             measureMessageContainer.name = "ClaimedBeaverMessageContainerMeasure";
@@ -584,6 +712,10 @@ namespace TwitchBorn.Services
             var overlay = new BeaverOverlay(
                 character,
                 element,
+                outerFrame,
+                outerBody,
+                nameplateFrame,
+                nameplateBody,
                 nameLabel,
                 messageContainer,
                 messageLabel,
@@ -597,13 +729,15 @@ namespace TwitchBorn.Services
                 nameColor);
 
             RegisterOverlayInteraction(element, overlay);
-                RegisterOverlayInteraction(nameLabel, overlay);
-                RegisterOverlayTooltip(element, overlay);
-                RegisterOverlayTooltip(nameLabel, overlay);
+            RegisterOverlayInteraction(outerFrame, overlay);
+            RegisterOverlayInteraction(nameplateFrame, overlay);
+            RegisterOverlayTooltip(element, overlay);
+            RegisterOverlayTooltip(outerFrame, overlay);
+            RegisterOverlayTooltip(nameplateFrame, overlay);
 
-                ApplyOverlayStyle(overlay);
-                ApplyMeasureStyle(overlay);
-                return overlay;
+            ApplyOverlayStyle(overlay);
+            ApplyMeasureStyle(overlay);
+            return overlay;
         }
 
         private void RegisterOverlayInteraction(VisualElement target, BeaverOverlay overlay)
@@ -892,11 +1026,28 @@ namespace TwitchBorn.Services
                     : PickingMode.Ignore;
             }
 
-            if (overlay.NameLabel != null)
+            if (overlay.OuterFrame != null)
             {
-                overlay.NameLabel.pickingMode = isMessageMode
+                overlay.OuterFrame.pickingMode = isMessageMode
+                    ? PickingMode.Position
+                    : PickingMode.Ignore;
+            }
+
+            if (overlay.OuterBody != null)
+            {
+                overlay.OuterBody.pickingMode = PickingMode.Ignore;
+            }
+
+            if (overlay.NameplateFrame != null)
+            {
+                overlay.NameplateFrame.pickingMode = isMessageMode
                     ? PickingMode.Ignore
                     : PickingMode.Position;
+            }
+
+            if (overlay.NameLabel != null)
+            {
+                overlay.NameLabel.pickingMode = PickingMode.Ignore;
             }
         }
 
@@ -969,8 +1120,25 @@ namespace TwitchBorn.Services
             var targetWidth = estimatedTextWidth
                             + OverlayPaddingLeft
                             + OverlayPaddingRight
-                            + OverlayBorderWidth * 2f
+                            + OverlayFramePadding * 2f
                             + 8f;
+
+            var currentNameplateWidth = 0f;
+
+            if (overlay.NameplateFrame != null)
+            {
+                currentNameplateWidth = overlay.NameplateFrame.resolvedStyle.width;
+
+                if (float.IsNaN(currentNameplateWidth) || currentNameplateWidth <= 0f)
+                {
+                    currentNameplateWidth = overlay.NameplateFrame.contentRect.width;
+                }
+            }
+
+            if (!float.IsNaN(currentNameplateWidth) && currentNameplateWidth > 0f)
+            {
+                targetWidth = Mathf.Max(targetWidth, currentNameplateWidth + OverlayPaddingLeft + OverlayPaddingRight);
+            }
 
             var targetMessageHeight = estimatedTextHeight
                                     + MessageExpandedHeightPadding

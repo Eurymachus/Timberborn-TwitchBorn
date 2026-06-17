@@ -17,6 +17,14 @@ namespace TwitchBorn.Settings
 
         public RangeIntModSetting NameplateVisibilityDistanceSetting { get; private set; }
 
+        public ModSetting<bool> NameplateShadowEnabled { get; } =
+            new(
+                false,
+                ModSettingDescriptor
+                .CreateLocalized("Eurymachus.TwitchBorn.Settings.NameplateShadowEnabled")
+                .SetLocalizedTooltip("Eurymachus.TwitchBorn.Settings.NameplateShadowEnabledTooltip")
+            );
+
         public RangeIntModSetting MessageVisibilityDistanceSetting { get; private set; }
 
         public ModSetting<bool> AlwaysDisplayNameplates { get; } =

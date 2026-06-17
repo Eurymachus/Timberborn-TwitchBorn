@@ -8,6 +8,10 @@ namespace TwitchBorn.UI
     {
         public Character Character { get; private set; }
         public VisualElement Element { get; private set; }
+        public VisualElement OuterFrame { get; private set; }
+        public VisualElement OuterBody { get; private set; }
+        public VisualElement NameplateFrame { get; private set; }
+        public VisualElement NameplateBody { get; private set; }
         public Label NameLabel { get; private set; }
         public VisualElement MessageContainer { get; private set; }
         public Label MessageLabel { get; private set; }
@@ -47,6 +51,10 @@ namespace TwitchBorn.UI
         public BeaverOverlay(
             Character character,
             VisualElement element,
+            VisualElement outerFrame,
+            VisualElement outerBody,
+            VisualElement nameplateFrame,
+            VisualElement nameplateBody,
             Label nameLabel,
             VisualElement messageContainer,
             Label messageLabel,
@@ -61,6 +69,10 @@ namespace TwitchBorn.UI
         {
             Character = character;
             Element = element;
+            OuterFrame = outerFrame;
+            OuterBody = outerBody;
+            NameplateFrame = nameplateFrame;
+            NameplateBody = nameplateBody;
             NameLabel = nameLabel;
             MessageContainer = messageContainer;
             MessageLabel = messageLabel;
@@ -158,6 +170,26 @@ namespace TwitchBorn.UI
             Element.style.display = DisplayStyle.Flex;
             Element.style.opacity = 0f;
             Element.pickingMode = PickingMode.Ignore;
+
+            if (OuterFrame != null)
+            {
+                OuterFrame.pickingMode = PickingMode.Ignore;
+            }
+
+            if (OuterBody != null)
+            {
+                OuterBody.pickingMode = PickingMode.Ignore;
+            }
+
+            if (NameplateFrame != null)
+            {
+                NameplateFrame.pickingMode = PickingMode.Ignore;
+            }
+
+            if (NameplateBody != null)
+            {
+                NameplateBody.pickingMode = PickingMode.Ignore;
+            }
 
             if (NameLabel != null)
             {
