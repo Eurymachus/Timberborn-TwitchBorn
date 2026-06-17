@@ -20,6 +20,21 @@ namespace TwitchBorn.Models
         // Guid.Empty means no beaver is currently assigned.
         public Guid BeaverRecordId { get; set; }
 
+        // Whether this viewer currently has a living assigned claim.
+        // This is viewer claim state and remains useful even after BeaverRecordId is cleared by death.
+        public bool HasLivingClaim { get; set; }
+
+        // Last assigned clean beaver name used by this viewer.
+        // Used when Keep Assigned Name Across Claims is enabled.
+        public string LastAssignedBeaverName { get; set; }
+
+        // Last dead beaver name for viewer-facing context after death.
+        // This lets status commands explain what happened even when death notifications were disabled or missed.
+        public string LastDeadBeaverName { get; set; }
+
+        // Whether the viewer was placed back into the claim queue because their beaver died.
+        public bool QueuedAfterDeath { get; set; }
+
         // Optional per-viewer overlay/name colour in #RRGGBB format.
         // This is viewer style data, not part of the beaver's assigned name.
         public string NameColorHex { get; set; }

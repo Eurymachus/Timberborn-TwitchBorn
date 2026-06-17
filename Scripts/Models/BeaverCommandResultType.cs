@@ -17,6 +17,14 @@ namespace TwitchBorn.Models
         ViewerNameColourCleared,
         ViewerNameShadowUpdated,
         ViewerNameShadowCleared,
-        InvalidRequestedColour
+        InvalidRequestedColour,
+
+        PreviousClaimDied,
+        ReclaimedAfterDeath,
+        AlreadyQueuedAfterDeath,
+        GrownUp,
+        Died,
+        AutoReclaimedAfterDeath,
+        QueuedAfterDeath
     }
 }

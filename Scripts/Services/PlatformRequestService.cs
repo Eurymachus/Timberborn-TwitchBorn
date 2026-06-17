@@ -76,6 +76,11 @@ namespace TwitchBorn.Services
 
             var existingBeaver = _beaverRegistry.TryGetBeaver(viewer);
 
+            BeaverCommandResult previousClaimDiedResult;
+            var previousClaimDied = _beaverRegistry.TryGetPreviousClaimDiedResult(
+                viewer,
+                out previousClaimDiedResult);
+
             if (existingBeaver != null)
             {
                 return CreateResult(
@@ -87,21 +92,38 @@ namespace TwitchBorn.Services
             if (_beaverRegistry.IsPendingClaim(viewer))
             {
                 return new BeaverCommandResult(
-                    BeaverCommandResultType.AlreadyQueued,
+                    previousClaimDied
+                        ? BeaverCommandResultType.AlreadyQueuedAfterDeath
+                        : BeaverCommandResultType.AlreadyQueued,
                     viewer,
                     null,
+                    previousClaimDiedResult == null ? "" : previousClaimDiedResult.BeaverName,
                     "",
-                    "");
+                    previousClaimDiedResult == null ? "" : previousClaimDiedResult.PreviousBeaverName,
+                    false,
+                    false,
+                    previousClaimDied);
             }
 
             var claimedBeaver = _beaverRegistry.ClaimBeaver(viewer);
 
             if (claimedBeaver != null)
             {
-                var result = CreateResult(
-                    BeaverCommandResultType.Claimed,
-                    viewer,
-                    claimedBeaver);
+                var result = previousClaimDied
+                    ? new BeaverCommandResult(
+                        BeaverCommandResultType.ReclaimedAfterDeath,
+                        viewer,
+                        claimedBeaver,
+                        _beaverStatusTextProvider.GetBeaverName(claimedBeaver),
+                        _beaverStatusTextProvider.GetBeaverStatus(claimedBeaver),
+                        previousClaimDiedResult == null ? "" : previousClaimDiedResult.PreviousBeaverName,
+                        false,
+                        false,
+                        false)
+                    : CreateResult(
+                        BeaverCommandResultType.Claimed,
+                        viewer,
+                        claimedBeaver);
 
                 _beaverOverlayService.ShowMessage(
                     claimedBeaver,
@@ -115,11 +137,17 @@ namespace TwitchBorn.Services
             if (_beaverRegistry.TryEnqueuePendingClaim(viewer))
             {
                 return new BeaverCommandResult(
-                    BeaverCommandResultType.Queued,
+                    previousClaimDied
+                        ? BeaverCommandResultType.QueuedAfterDeath
+                        : BeaverCommandResultType.Queued,
                     viewer,
                     null,
+                    previousClaimDiedResult == null ? "" : previousClaimDiedResult.BeaverName,
                     "",
-                    "");
+                    previousClaimDiedResult == null ? "" : previousClaimDiedResult.PreviousBeaverName,
+                    false,
+                    false,
+                    previousClaimDied);
             }
 
             return new BeaverCommandResult(
@@ -146,6 +174,13 @@ namespace TwitchBorn.Services
 
             if (beaver == null)
             {
+                BeaverCommandResult previousClaimDiedResult;
+
+                if (_beaverRegistry.TryGetPreviousClaimDiedResult(viewer, out previousClaimDiedResult))
+                {
+                    return previousClaimDiedResult;
+                }
+
                 return new BeaverCommandResult(
                     BeaverCommandResultType.NoClaimedBeaver,
                     viewer,
@@ -215,8 +250,8 @@ namespace TwitchBorn.Services
         }
 
         public BeaverCommandResult HandleViewerNameColour(
-    ViewerIdentity viewer,
-    string requestedColour)
+            ViewerIdentity viewer,
+            string requestedColour)
         {
             if (viewer == null || !viewer.IsValid)
             {

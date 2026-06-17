@@ -11,6 +11,7 @@ using TwitchBorn.Models;
 using TwitchBorn.Api;
 using TwitchBorn.Settings;
 using Timberborn.Localization;
+using TwitchBorn.Registry;
 
 namespace TwitchBorn.Platforms.Twitch
 {
@@ -42,12 +43,20 @@ namespace TwitchBorn.Platforms.Twitch
         private const string ReplyViewerNameShadowUpdatedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameShadowUpdated";
         private const string ReplyViewerNameShadowClearedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameShadowCleared";
         private const string ReplyInvalidRequestedColourLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.InvalidRequestedColour";
+        private const string ReplyPreviousClaimDiedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.PreviousClaimDied";
+        private const string ReplyReclaimedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ReclaimedAfterDeath";
+        private const string ReplyAlreadyQueuedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.AlreadyQueuedAfterDeath";
+        private const string ReplyGrownUpLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.GrownUp";
+        private const string ReplyDiedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.Died";
+        private const string ReplyAutoReclaimedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.AutoReclaimedAfterDeath";
+        private const string ReplyQueuedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.QueuedAfterDeath";
 
         private readonly PlatformIntegrationSettingsOwner _settingsOwner;
         private readonly TwitchTriggerSettingsOwner _twitchTriggerSettingsOwner;
         private readonly TwitchTriggerMatcher _twitchTriggerMatcher;
         private readonly ITwitchBornApi _twitchBornApi;
         private readonly TwitchAuthService _twitchAuthService;
+        private readonly BeaverRegistry _beaverRegistry;
         private readonly object _queueLock = new object();
         private readonly object _writerLock = new object();
         private readonly Queue<TwitchIrcMessage> _messageQueue = new Queue<TwitchIrcMessage>();
@@ -67,6 +76,7 @@ namespace TwitchBorn.Platforms.Twitch
             TwitchTriggerMatcher twitchTriggerMatcher,
             ITwitchBornApi twitchBornApi,
             TwitchAuthService twitchAuthService,
+            BeaverRegistry beaverRegistry,
             ILoc loc)
         {
             _settingsOwner = settingsOwner;
@@ -74,16 +84,19 @@ namespace TwitchBorn.Platforms.Twitch
             _twitchTriggerMatcher = twitchTriggerMatcher;
             _twitchBornApi = twitchBornApi;
             _twitchAuthService = twitchAuthService;
+            _beaverRegistry = beaverRegistry;
             _loc = loc;
         }
 
         public void Load()
         {
+            _beaverRegistry.BeaverLifecycleNotification += OnBeaverLifecycleNotification;
             TwitchBornLog.Info("Twitch IRC service loaded.");
         }
 
         public void Unload()
         {
+            _beaverRegistry.BeaverLifecycleNotification -= OnBeaverLifecycleNotification;
             StopClient();
             TwitchBornLog.Info("Twitch IRC service unloaded.");
         }
@@ -506,6 +519,21 @@ namespace TwitchBorn.Platforms.Twitch
             }
         }
 
+        private void OnBeaverLifecycleNotification(BeaverCommandResult result)
+        {
+            if (!ShouldBeRunning())
+            {
+                return;
+            }
+
+            var reply = BuildBeaverCommandReply(result);
+
+            if (!string.IsNullOrEmpty(reply))
+            {
+                SendChatMessage(reply);
+            }
+        }
+
         private string BuildBeaverCommandReply(BeaverCommandResult result)
         {
             if (result == null || result.Viewer == null)
@@ -515,6 +543,9 @@ namespace TwitchBorn.Platforms.Twitch
 
             var mention = "@" + GetReplyName(result.Viewer);
             var status = FormatBeaverStatus(result);
+            var claimCommand = GetConfiguredClaimCommand();
+            var beaverName = GetSafeBeaverName(result);
+            var previousBeaverName = GetSafePreviousBeaverName(result);
 
             switch (result.Type)
             {
@@ -566,9 +597,62 @@ namespace TwitchBorn.Platforms.Twitch
                 case BeaverCommandResultType.InvalidRequestedColour:
                     return _loc.T(ReplyInvalidRequestedColourLocKey, mention);
 
+                case BeaverCommandResultType.PreviousClaimDied:
+                    return _loc.T(ReplyPreviousClaimDiedLocKey, mention, previousBeaverName, claimCommand);
+
+                case BeaverCommandResultType.ReclaimedAfterDeath:
+                    return _loc.T(ReplyReclaimedAfterDeathLocKey, mention, previousBeaverName, beaverName);
+
+                case BeaverCommandResultType.AlreadyQueuedAfterDeath:
+                    return _loc.T(ReplyAlreadyQueuedAfterDeathLocKey, mention, previousBeaverName);
+
+                case BeaverCommandResultType.GrownUp:
+                    return _loc.T(ReplyGrownUpLocKey, mention, beaverName);
+
+                case BeaverCommandResultType.Died:
+                    return _loc.T(ReplyDiedLocKey, mention, previousBeaverName);
+
+                case BeaverCommandResultType.AutoReclaimedAfterDeath:
+                    return _loc.T(ReplyAutoReclaimedAfterDeathLocKey, mention, previousBeaverName, beaverName);
+
+                case BeaverCommandResultType.QueuedAfterDeath:
+                    return _loc.T(ReplyQueuedAfterDeathLocKey, mention, previousBeaverName);
+
                 default:
                     return "";
             }
+        }
+
+        private string GetSafeBeaverName(BeaverCommandResult result)
+        {
+            if (result == null || string.IsNullOrEmpty(result.BeaverName))
+            {
+                return _loc.T(ReplyUnknownBeaverNameLocKey);
+            }
+
+            return result.BeaverName;
+        }
+
+        private string GetSafePreviousBeaverName(BeaverCommandResult result)
+        {
+            if (result == null || string.IsNullOrEmpty(result.PreviousBeaverName))
+            {
+                return GetSafeBeaverName(result);
+            }
+
+            return result.PreviousBeaverName;
+        }
+
+        private string GetConfiguredClaimCommand()
+        {
+            var claimCommand = _twitchTriggerSettingsOwner.ClaimBeaverTriggerText.Value;
+
+            if (string.IsNullOrWhiteSpace(claimCommand))
+            {
+                return "!claim";
+            }
+
+            return claimCommand.Trim();
         }
 
         private string FormatBeaverStatus(BeaverCommandResult result)
