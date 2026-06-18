@@ -34,7 +34,7 @@ namespace TwitchBorn.Services
         private const int OverlayFramePadding = 2;
         private const int NameplateBodyPaddingLeft = 11;
         private const int NameplateBodyPaddingRight = 11;
-        private const int NameplateBodyPaddingTop = 2;
+        private const int NameplateBodyPaddingTop = 3;
         private const int NameplateBodyPaddingBottom = 4;
 
         private const int OverlayBorderWidth = 2;
