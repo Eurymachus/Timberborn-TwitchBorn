@@ -19,6 +19,7 @@ namespace TwitchBorn.Core
             Bind<BeaverOverlayService>().AsSingleton();
             Bind<BeaverStatusTextProvider>().AsSingleton();
             Bind<ClaimedBeaverRenameFeedbackService>().AsSingleton();
+            Bind<MessageFilterService>().AsSingleton();
             Bind<PlatformRequestService>().AsSingleton();
 
             Bind<ITwitchBornApi>().To<TwitchBornApi>().AsSingleton();

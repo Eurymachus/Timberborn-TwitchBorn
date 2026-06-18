@@ -1,14 +1,23 @@
-﻿using System.Text;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace TwitchBorn.Core
 {
     public static class TwitchBornTextSanitizer
     {
         private const int HexColorTagLength = 9;
+        private const string LinkReplacementText = "[link]";
+        private const string BlockedWordReplacementText = "[blocked]";
+        private static readonly Regex RichTextLinkRegex = new Regex(
+            @"<\s*link\b[^>]*>.*?<\s*/\s*link\s*>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        private static readonly Regex UrlRegex = new Regex(
+            @"\b((?:https?://|www\.)[^\s<>()]+|[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+(?:/[^\s<>()]*)?)",
+            RegexOptions.IgnoreCase);
 
         public static string SanitizePlainText(string value, int maxLength)
         {
-            var sanitized = CleanSingleLine(StripRichText(value));
+            var sanitized = CleanSingleLine(StripRichText(ReplaceHyperlinks(value)));
 
             if (maxLength >= 0 && sanitized.Length > maxLength)
             {
@@ -16,6 +25,17 @@ namespace TwitchBorn.Core
             }
 
             return sanitized;
+        }
+
+        public static string SanitizeViewerText(
+            string value,
+            string[] blacklistedTerms)
+        {
+            return CleanSingleLine(
+                StripRichText(
+                    ReplaceBlacklistedTerms(
+                        ReplaceHyperlinks(value),
+                        blacklistedTerms)));
         }
 
         public static string SanitizeBeaverEntityName(string value, int maxVisibleLength)
@@ -34,7 +54,7 @@ namespace TwitchBorn.Core
                 nameText = nameText.TrimStart();
             }
 
-            var plainName = CleanSingleLine(StripRichText(nameText));
+            var plainName = CleanSingleLine(StripRichText(ReplaceHyperlinks(nameText)));
 
             if (maxVisibleLength >= 0 && plainName.Length > maxVisibleLength)
             {
@@ -70,11 +90,44 @@ namespace TwitchBorn.Core
                 nameText = nameText.TrimStart();
             }
 
-            var sanitized = CleanSingleLine(StripRichText(nameText));
+            var sanitized = CleanSingleLine(StripRichText(ReplaceHyperlinks(nameText)));
 
             if (maxLength >= 0 && sanitized.Length > maxLength)
             {
                 sanitized = sanitized.Substring(0, maxLength);
+            }
+
+            return sanitized;
+        }
+
+        public static string ReplaceHyperlinks(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return "";
+            }
+
+            var withoutRichTextLinks = RichTextLinkRegex.Replace(value, LinkReplacementText);
+            return UrlRegex.Replace(withoutRichTextLinks, LinkReplacementText);
+        }
+
+        public static string ReplaceBlacklistedTerms(string value, string[] blacklistedTerms)
+        {
+            if (string.IsNullOrEmpty(value) || blacklistedTerms == null || blacklistedTerms.Length == 0)
+            {
+                return value ?? "";
+            }
+
+            var sanitized = value;
+
+            foreach (var term in blacklistedTerms)
+            {
+                if (string.IsNullOrEmpty(term))
+                {
+                    continue;
+                }
+
+                sanitized = ReplaceBlacklistedTerm(sanitized, term);
             }
 
             return sanitized;
@@ -159,6 +212,27 @@ namespace TwitchBorn.Core
             return sanitized.Trim();
         }
 
+        private static string ReplaceBlacklistedTerm(string value, string term)
+        {
+            var escapedTerm = Regex.Escape(term);
+            var pattern = ShouldUseWordBoundaries(term)
+                ? "(?<![A-Za-z0-9])" + escapedTerm + "(?![A-Za-z0-9])"
+                : escapedTerm;
+
+            return Regex.Replace(
+                value,
+                pattern,
+                BlockedWordReplacementText,
+                RegexOptions.IgnoreCase);
+        }
+
+        private static bool ShouldUseWordBoundaries(string term)
+        {
+            return !string.IsNullOrEmpty(term)
+                && IsAsciiLetterOrDigit(term[0])
+                && IsAsciiLetterOrDigit(term[term.Length - 1]);
+        }
+
         private static bool TryGetRichTextTagEnd(
             string value,
             int startIndex,
@@ -223,6 +297,11 @@ namespace TwitchBorn.Core
             }
 
             return IsAsciiLetter(first);
+        }
+
+        private static bool IsAsciiLetterOrDigit(char value)
+        {
+            return IsAsciiLetter(value) || (value >= '0' && value <= '9');
         }
 
         private static bool IsAsciiLetter(char value)

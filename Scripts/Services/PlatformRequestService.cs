@@ -14,17 +14,20 @@ namespace TwitchBorn.Services
         private readonly BeaverRegistry _beaverRegistry;
         private readonly BeaverOverlayService _beaverOverlayService;
         private readonly BeaverStatusTextProvider _beaverStatusTextProvider;
+        private readonly MessageFilterService _messageFilterService;
         private readonly ILoc _loc;
 
         public PlatformRequestService(
             BeaverRegistry beaverRegistry,
             BeaverOverlayService beaverOverlayService,
             BeaverStatusTextProvider beaverStatusTextProvider,
+            MessageFilterService messageFilterService,
             ILoc loc)
         {
             _beaverRegistry = beaverRegistry;
             _beaverOverlayService = beaverOverlayService;
             _beaverStatusTextProvider = beaverStatusTextProvider;
+            _messageFilterService = messageFilterService;
             _loc = loc;
 
             _beaverRegistry.PendingClaimAssigned += OnPendingClaimAssigned;
@@ -57,7 +60,7 @@ namespace TwitchBorn.Services
                 beaver,
                 result.BeaverName,
                 GetPlainViewerName(viewer),
-                message ?? "");
+                _messageFilterService.SanitizeViewerText(message));
 
             return true;
         }
@@ -212,7 +215,7 @@ namespace TwitchBorn.Services
             string safeName;
             var beaver = _beaverRegistry.RenameBeaver(
                 viewer,
-                requestedName,
+                _messageFilterService.SanitizeViewerText(requestedName),
                 out safeName);
 
             if (string.IsNullOrEmpty(safeName))

@@ -12,6 +12,7 @@ namespace TwitchBorn.Settings
         {
             Bind<PlatformIntegrationSettingsOwner>().AsSingleton();
             Bind<TwitchTriggerSettingsOwner>().AsSingleton();
+            Bind<MessageFilteringSettingsOwner>().AsSingleton();
             Bind<OverlaySettingsOwner>().AsSingleton();
             Bind<ClaimSettingsOwner>().AsSingleton();
             Bind<DebugSettingsOwner>().AsSingleton();
