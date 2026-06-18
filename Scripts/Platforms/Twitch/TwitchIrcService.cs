@@ -36,6 +36,7 @@ namespace TwitchBorn.Platforms.Twitch
         private const string ReplyNoClaimedBeaverLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.NoClaimedBeaver";
         private const string ReplyInvalidRequestedNameLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.InvalidRequestedName";
         private const string ReplyBeaverStatusLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.BeaverStatus";
+        private const string ReplyBeaverStatusWithAgeLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.BeaverStatusWithAge";
         private const string ReplyUnknownBeaverNameLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.UnknownBeaverName";
         private const string ReplyUnknownBeaverStatusLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.UnknownBeaverStatus";
         private const string ReplyViewerNameColourUpdatedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameColourUpdated";
@@ -672,6 +673,15 @@ namespace TwitchBorn.Platforms.Twitch
             var beaverStatus = string.IsNullOrEmpty(result.BeaverStatus)
                 ? _loc.T(ReplyUnknownBeaverStatusLocKey)
                 : result.BeaverStatus;
+
+            if (result.HasKnownBeaverAge)
+            {
+                return _loc.T(
+                    ReplyBeaverStatusWithAgeLocKey,
+                    beaverName,
+                    beaverStatus,
+                    result.BeaverAge);
+            }
 
             return _loc.T(
                 ReplyBeaverStatusLocKey,

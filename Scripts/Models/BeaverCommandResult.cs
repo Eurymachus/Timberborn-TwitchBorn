@@ -9,6 +9,7 @@ namespace TwitchBorn.Models
         public Character Beaver { get; private set; }
         public string BeaverName { get; private set; }
         public string BeaverStatus { get; private set; }
+        public int BeaverAge { get; private set; }
         public string PreviousBeaverName { get; private set; }
         public bool RequiresExplicitClaim { get; private set; }
         public bool WasAutoClaimed { get; private set; }
@@ -40,6 +41,7 @@ namespace TwitchBorn.Models
             Beaver = beaver;
             BeaverName = beaverName ?? "";
             BeaverStatus = beaverStatus ?? "";
+            BeaverAge = beaver == null ? -1 : beaver.Age;
             PreviousBeaverName = previousBeaverName ?? "";
             RequiresExplicitClaim = requiresExplicitClaim;
             WasAutoClaimed = wasAutoClaimed;
@@ -51,6 +53,14 @@ namespace TwitchBorn.Models
             get
             {
                 return Beaver != null;
+            }
+        }
+
+        public bool HasKnownBeaverAge
+        {
+            get
+            {
+                return BeaverAge >= 0;
             }
         }
     }
