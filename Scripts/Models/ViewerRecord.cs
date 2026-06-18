@@ -32,6 +32,9 @@ namespace TwitchBorn.Models
         // This lets status commands explain what happened even when death notifications were disabled or missed.
         public string LastDeadBeaverName { get; set; }
 
+        // Last known death reason for viewer-facing context after death.
+        public string LastDeadBeaverDeathReason { get; set; }
+
         // Whether the viewer was placed back into the claim queue because their beaver died.
         public bool QueuedAfterDeath { get; set; }
 

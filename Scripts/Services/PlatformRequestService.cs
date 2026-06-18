@@ -105,7 +105,8 @@ namespace TwitchBorn.Services
                     previousClaimDiedResult == null ? "" : previousClaimDiedResult.PreviousBeaverName,
                     false,
                     false,
-                    previousClaimDied);
+                    previousClaimDied,
+                    previousClaimDiedResult == null ? "" : previousClaimDiedResult.DeathReason);
             }
 
             var claimedBeaver = _beaverRegistry.ClaimBeaver(viewer);
@@ -122,7 +123,8 @@ namespace TwitchBorn.Services
                         previousClaimDiedResult == null ? "" : previousClaimDiedResult.PreviousBeaverName,
                         false,
                         false,
-                        false)
+                        false,
+                        previousClaimDiedResult == null ? "" : previousClaimDiedResult.DeathReason)
                     : CreateResult(
                         BeaverCommandResultType.Claimed,
                         viewer,
@@ -150,7 +152,8 @@ namespace TwitchBorn.Services
                     previousClaimDiedResult == null ? "" : previousClaimDiedResult.PreviousBeaverName,
                     false,
                     false,
-                    previousClaimDied);
+                    previousClaimDied,
+                    previousClaimDiedResult == null ? "" : previousClaimDiedResult.DeathReason);
             }
 
             return new BeaverCommandResult(

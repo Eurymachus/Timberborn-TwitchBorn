@@ -45,12 +45,18 @@ namespace TwitchBorn.Platforms.Twitch
         private const string ReplyViewerNameShadowClearedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ViewerNameShadowCleared";
         private const string ReplyInvalidRequestedColourLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.InvalidRequestedColour";
         private const string ReplyPreviousClaimDiedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.PreviousClaimDied";
+        private const string ReplyPreviousClaimDiedWithReasonLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.PreviousClaimDiedWithReason";
         private const string ReplyReclaimedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ReclaimedAfterDeath";
+        private const string ReplyReclaimedAfterDeathWithReasonLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.ReclaimedAfterDeathWithReason";
         private const string ReplyAlreadyQueuedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.AlreadyQueuedAfterDeath";
+        private const string ReplyAlreadyQueuedAfterDeathWithReasonLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.AlreadyQueuedAfterDeathWithReason";
         private const string ReplyGrownUpLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.GrownUp";
         private const string ReplyDiedLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.Died";
+        private const string ReplyDiedWithReasonLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.DiedWithReason";
         private const string ReplyAutoReclaimedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.AutoReclaimedAfterDeath";
+        private const string ReplyAutoReclaimedAfterDeathWithReasonLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.AutoReclaimedAfterDeathWithReason";
         private const string ReplyQueuedAfterDeathLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.QueuedAfterDeath";
+        private const string ReplyQueuedAfterDeathWithReasonLocKey = "Eurymachus.TwitchBorn.Twitch.Reply.QueuedAfterDeathWithReason";
 
         private readonly PlatformIntegrationSettingsOwner _settingsOwner;
         private readonly TwitchTriggerSettingsOwner _twitchTriggerSettingsOwner;
@@ -547,6 +553,7 @@ namespace TwitchBorn.Platforms.Twitch
             var claimCommand = GetConfiguredClaimCommand();
             var beaverName = GetSafeBeaverName(result);
             var previousBeaverName = GetSafePreviousBeaverName(result);
+            var previousBeaverDeath = FormatPreviousBeaverDeath(previousBeaverName, result.DeathReason);
 
             switch (result.Type)
             {
@@ -599,24 +606,54 @@ namespace TwitchBorn.Platforms.Twitch
                     return _loc.T(ReplyInvalidRequestedColourLocKey, mention);
 
                 case BeaverCommandResultType.PreviousClaimDied:
+                    if (result.HasDeathReason)
+                    {
+                        return _loc.T(ReplyPreviousClaimDiedWithReasonLocKey, mention, previousBeaverDeath, claimCommand);
+                    }
+
                     return _loc.T(ReplyPreviousClaimDiedLocKey, mention, previousBeaverName, claimCommand);
 
                 case BeaverCommandResultType.ReclaimedAfterDeath:
+                    if (result.HasDeathReason)
+                    {
+                        return _loc.T(ReplyReclaimedAfterDeathWithReasonLocKey, mention, previousBeaverDeath, beaverName);
+                    }
+
                     return _loc.T(ReplyReclaimedAfterDeathLocKey, mention, previousBeaverName, beaverName);
 
                 case BeaverCommandResultType.AlreadyQueuedAfterDeath:
+                    if (result.HasDeathReason)
+                    {
+                        return _loc.T(ReplyAlreadyQueuedAfterDeathWithReasonLocKey, mention, previousBeaverName, result.DeathReason);
+                    }
+
                     return _loc.T(ReplyAlreadyQueuedAfterDeathLocKey, mention, previousBeaverName);
 
                 case BeaverCommandResultType.GrownUp:
                     return _loc.T(ReplyGrownUpLocKey, mention, beaverName);
 
                 case BeaverCommandResultType.Died:
+                    if (result.HasDeathReason)
+                    {
+                        return _loc.T(ReplyDiedWithReasonLocKey, mention, previousBeaverName, result.DeathReason);
+                    }
+
                     return _loc.T(ReplyDiedLocKey, mention, previousBeaverName);
 
                 case BeaverCommandResultType.AutoReclaimedAfterDeath:
+                    if (result.HasDeathReason)
+                    {
+                        return _loc.T(ReplyAutoReclaimedAfterDeathWithReasonLocKey, mention, previousBeaverDeath, beaverName);
+                    }
+
                     return _loc.T(ReplyAutoReclaimedAfterDeathLocKey, mention, previousBeaverName, beaverName);
 
                 case BeaverCommandResultType.QueuedAfterDeath:
+                    if (result.HasDeathReason)
+                    {
+                        return _loc.T(ReplyQueuedAfterDeathWithReasonLocKey, mention, previousBeaverName, result.DeathReason);
+                    }
+
                     return _loc.T(ReplyQueuedAfterDeathLocKey, mention, previousBeaverName);
 
                 default:
@@ -642,6 +679,16 @@ namespace TwitchBorn.Platforms.Twitch
             }
 
             return result.PreviousBeaverName;
+        }
+
+        private static string FormatPreviousBeaverDeath(string previousBeaverName, string deathReason)
+        {
+            if (string.IsNullOrEmpty(deathReason))
+            {
+                return previousBeaverName ?? "";
+            }
+
+            return (previousBeaverName ?? "") + " " + deathReason;
         }
 
         private string GetConfiguredClaimCommand()

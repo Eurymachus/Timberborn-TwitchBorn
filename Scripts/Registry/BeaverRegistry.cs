@@ -4,6 +4,9 @@ using Timberborn.Beavers;
 using Timberborn.Characters;
 using Timberborn.EntityNaming;
 using Timberborn.EntitySystem;
+using Timberborn.MortalSystem;
+using Timberborn.NeedSpecs;
+using Timberborn.NeedSystem;
 using Timberborn.Persistence;
 using Timberborn.SingletonSystem;
 using Timberborn.WorldPersistence;
@@ -31,6 +34,7 @@ namespace TwitchBorn.Registry
         private static readonly ListKey<bool> ViewerHasLivingClaimsKey = new ListKey<bool>("ViewerHasLivingClaims");
         private static readonly ListKey<string> ViewerLastAssignedBeaverNamesKey = new ListKey<string>("ViewerLastAssignedBeaverNames");
         private static readonly ListKey<string> ViewerLastDeadBeaverNamesKey = new ListKey<string>("ViewerLastDeadBeaverNames");
+        private static readonly ListKey<string> ViewerLastDeadBeaverDeathReasonsKey = new ListKey<string>("ViewerLastDeadBeaverDeathReasons");
         private static readonly ListKey<bool> ViewerQueuedAfterDeathKey = new ListKey<bool>("ViewerQueuedAfterDeath");
         private static readonly ListKey<string> ViewerFirstSeenAtUtcKey = new ListKey<string>("ViewerFirstSeenAtUtc");
         private static readonly ListKey<string> ViewerLastSeenAtUtcKey = new ListKey<string>("ViewerLastSeenAtUtc");
@@ -69,6 +73,7 @@ namespace TwitchBorn.Registry
         private readonly Dictionary<Guid, BeaverRecord> _beaversByRecordId = new Dictionary<Guid, BeaverRecord>();
         private readonly Dictionary<Guid, BeaverRecord> _beaversByEntityId = new Dictionary<Guid, BeaverRecord>();
         private readonly Dictionary<Guid, BeaverRecord> _beaversByHistoricalEntityId = new Dictionary<Guid, BeaverRecord>();
+        private readonly Dictionary<Guid, string> _pendingDeathReasonsByEntityId = new Dictionary<Guid, string>();
         private readonly List<ActiveBeaver> _activeBeaverCache = new List<ActiveBeaver>();
         private readonly List<ViewerIdentity> _pendingClaims = new List<ViewerIdentity>();
         private readonly HashSet<string> _pendingClaimKeys = new HashSet<string>();
@@ -117,6 +122,7 @@ namespace TwitchBorn.Registry
             var viewerHasLivingClaims = new List<bool>();
             var viewerLastAssignedBeaverNames = new List<string>();
             var viewerLastDeadBeaverNames = new List<string>();
+            var viewerLastDeadBeaverDeathReasons = new List<string>();
             var viewerQueuedAfterDeath = new List<bool>();
             var viewerFirstSeenAtUtc = new List<string>();
             var viewerLastSeenAtUtc = new List<string>();
@@ -133,6 +139,7 @@ namespace TwitchBorn.Registry
                 viewerHasLivingClaims.Add(viewerRecord.HasLivingClaim);
                 viewerLastAssignedBeaverNames.Add(viewerRecord.LastAssignedBeaverName ?? "");
                 viewerLastDeadBeaverNames.Add(viewerRecord.LastDeadBeaverName ?? "");
+                viewerLastDeadBeaverDeathReasons.Add(viewerRecord.LastDeadBeaverDeathReason ?? "");
                 viewerQueuedAfterDeath.Add(viewerRecord.QueuedAfterDeath);
                 viewerFirstSeenAtUtc.Add(viewerRecord.FirstSeenAtUtc ?? "");
                 viewerLastSeenAtUtc.Add(viewerRecord.LastSeenAtUtc ?? "");
@@ -217,6 +224,7 @@ namespace TwitchBorn.Registry
             saver.Set(ViewerHasLivingClaimsKey, viewerHasLivingClaims);
             saver.Set(ViewerLastAssignedBeaverNamesKey, viewerLastAssignedBeaverNames);
             saver.Set(ViewerLastDeadBeaverNamesKey, viewerLastDeadBeaverNames);
+            saver.Set(ViewerLastDeadBeaverDeathReasonsKey, viewerLastDeadBeaverDeathReasons);
             saver.Set(ViewerQueuedAfterDeathKey, viewerQueuedAfterDeath);
             saver.Set(ViewerFirstSeenAtUtcKey, viewerFirstSeenAtUtc);
             saver.Set(ViewerLastSeenAtUtcKey, viewerLastSeenAtUtc);
@@ -313,6 +321,7 @@ namespace TwitchBorn.Registry
                 {
                     viewerRecord.HasLivingClaim = true;
                     viewerRecord.LastDeadBeaverName = "";
+                    viewerRecord.LastDeadBeaverDeathReason = "";
                     viewerRecord.QueuedAfterDeath = false;
                     viewerRecord.LastAssignedBeaverName = SanitizeCleanBeaverName(existingBeaverRecord.AssignedName);
                     return validatedCharacter;
@@ -339,12 +348,14 @@ namespace TwitchBorn.Registry
                 TwitchBornLog.Info("Registered beaver for " + viewer.SafeDisplayName + " but beaver record was missing.");
                 viewerRecord.HasLivingClaim = true;
                 viewerRecord.LastDeadBeaverName = "";
+                viewerRecord.LastDeadBeaverDeathReason = "";
                 viewerRecord.QueuedAfterDeath = false;
                 return registeredCharacter;
             }
 
             viewerRecord.HasLivingClaim = true;
             viewerRecord.LastDeadBeaverName = "";
+            viewerRecord.LastDeadBeaverDeathReason = "";
             viewerRecord.QueuedAfterDeath = false;
             viewerRecord.LastAssignedBeaverName = SanitizeCleanBeaverName(registeredBeaverRecord.AssignedName);
 
@@ -414,6 +425,7 @@ namespace TwitchBorn.Registry
             viewerRecord.LastAssignedBeaverName = safeName;
             viewerRecord.HasLivingClaim = true;
             viewerRecord.LastDeadBeaverName = "";
+            viewerRecord.LastDeadBeaverDeathReason = "";
             viewerRecord.QueuedAfterDeath = false;
 
             SetEntityNameInternally(
@@ -477,7 +489,8 @@ namespace TwitchBorn.Registry
                 viewerRecord.LastDeadBeaverName,
                 !viewerRecord.QueuedAfterDeath,
                 false,
-                viewerRecord.QueuedAfterDeath);
+                viewerRecord.QueuedAfterDeath,
+                viewerRecord.LastDeadBeaverDeathReason);
 
             return true;
         }
@@ -878,6 +891,31 @@ namespace TwitchBorn.Registry
         }
 
         [OnEvent]
+        public void OnPreMortalDiedEvent(PreMortalDiedEvent preMortalDiedEvent)
+        {
+            if (preMortalDiedEvent == null || preMortalDiedEvent.Mortal == null)
+            {
+                return;
+            }
+
+            var character = preMortalDiedEvent.Mortal.GetComponent<Character>();
+
+            if (character == null || !IsClaimableCharacter(character))
+            {
+                return;
+            }
+
+            var entityId = GetEntityId(character);
+
+            if (entityId == Guid.Empty)
+            {
+                return;
+            }
+
+            _pendingDeathReasonsByEntityId[entityId] = GetDeathReason(character);
+        }
+
+        [OnEvent]
         public void OnEntityNameChanged(EntityNameChangedEvent entityNameChangedEvent)
         {
             if (entityNameChangedEvent == null || entityNameChangedEvent.Entity == null)
@@ -953,6 +991,7 @@ namespace TwitchBorn.Registry
             var viewerRecord = GetViewerRecordForBeaverRecord(beaverRecord);
             var viewer = CreateViewerIdentity(viewerRecord);
             var deadBeaverName = GetLifecycleBeaverName(beaverRecord, deadCharacter);
+            var deathReason = GetPendingDeathReason(deadCharacter);
 
             MarkBeaverRecordStale(beaverRecord, "entity_removed");
 
@@ -961,6 +1000,7 @@ namespace TwitchBorn.Registry
                 viewerRecord.BeaverRecordId = Guid.Empty;
                 viewerRecord.HasLivingClaim = false;
                 viewerRecord.LastDeadBeaverName = deadBeaverName;
+                viewerRecord.LastDeadBeaverDeathReason = deathReason;
                 viewerRecord.QueuedAfterDeath = false;
 
                 if (_claimSettingsOwner.KeepAssignedNameAcrossClaims.Value)
@@ -991,7 +1031,8 @@ namespace TwitchBorn.Registry
                             deadBeaverName,
                             false,
                             true,
-                            false));
+                            false,
+                            deathReason));
                     }
 
                     return;
@@ -1015,7 +1056,8 @@ namespace TwitchBorn.Registry
                             deadBeaverName,
                             false,
                             false,
-                            true));
+                            true,
+                            deathReason));
                     }
 
                     return;
@@ -1033,7 +1075,8 @@ namespace TwitchBorn.Registry
                     deadBeaverName,
                     false,
                     false,
-                    false));
+                    false,
+                    deathReason));
             }
         }
 
@@ -1164,6 +1207,7 @@ namespace TwitchBorn.Registry
                 viewerRecord.BeaverRecordId = beaverRecord.BeaverRecordId;
                 viewerRecord.HasLivingClaim = true;
                 viewerRecord.LastDeadBeaverName = "";
+                viewerRecord.LastDeadBeaverDeathReason = "";
                 viewerRecord.QueuedAfterDeath = false;
                 viewerRecord.LastAssignedBeaverName = SanitizeCleanBeaverName(beaverRecord.AssignedName);
             }
@@ -1268,6 +1312,7 @@ namespace TwitchBorn.Registry
                 viewerRecord.HasLivingClaim = true;
                 viewerRecord.LastAssignedBeaverName = assignedName;
                 viewerRecord.LastDeadBeaverName = "";
+                viewerRecord.LastDeadBeaverDeathReason = "";
                 viewerRecord.QueuedAfterDeath = false;
 
                 TwitchBornLog.Info("Adopted pre-named beaver: " + assignedName + " -> " + entityId);
@@ -1303,6 +1348,7 @@ namespace TwitchBorn.Registry
             viewerRecord.HasLivingClaim = true;
             viewerRecord.LastAssignedBeaverName = assignedName;
             viewerRecord.LastDeadBeaverName = "";
+            viewerRecord.LastDeadBeaverDeathReason = "";
             viewerRecord.QueuedAfterDeath = false;
 
             MarkCacheDirty();
@@ -1582,6 +1628,7 @@ namespace TwitchBorn.Registry
                 HasLivingClaim = false,
                 LastAssignedBeaverName = "",
                 LastDeadBeaverName = "",
+                LastDeadBeaverDeathReason = "",
                 QueuedAfterDeath = false,
                 FirstSeenAtUtc = now,
                 LastSeenAtUtc = now,
@@ -1649,6 +1696,7 @@ namespace TwitchBorn.Registry
             _beaversByRecordId.Clear();
             _beaversByEntityId.Clear();
             _beaversByHistoricalEntityId.Clear();
+            _pendingDeathReasonsByEntityId.Clear();
             _pendingClaims.Clear();
             _pendingClaimKeys.Clear();
 
@@ -1681,6 +1729,7 @@ namespace TwitchBorn.Registry
             var hasLivingClaims = loader.Has(ViewerHasLivingClaimsKey) ? loader.Get(ViewerHasLivingClaimsKey) : new List<bool>();
             var lastAssignedBeaverNames = loader.Has(ViewerLastAssignedBeaverNamesKey) ? loader.Get(ViewerLastAssignedBeaverNamesKey) : new List<string>();
             var lastDeadBeaverNames = loader.Has(ViewerLastDeadBeaverNamesKey) ? loader.Get(ViewerLastDeadBeaverNamesKey) : new List<string>();
+            var lastDeadBeaverDeathReasons = loader.Has(ViewerLastDeadBeaverDeathReasonsKey) ? loader.Get(ViewerLastDeadBeaverDeathReasonsKey) : new List<string>();
             var queuedAfterDeath = loader.Has(ViewerQueuedAfterDeathKey) ? loader.Get(ViewerQueuedAfterDeathKey) : new List<bool>();
             var firstSeenAtUtc = loader.Has(ViewerFirstSeenAtUtcKey) ? loader.Get(ViewerFirstSeenAtUtcKey) : new List<string>();
             var lastSeenAtUtc = loader.Has(ViewerLastSeenAtUtcKey) ? loader.Get(ViewerLastSeenAtUtcKey) : new List<string>();
@@ -1709,6 +1758,7 @@ namespace TwitchBorn.Registry
                         : GetGuidAt(beaverRecordIds, i) != Guid.Empty,
                     LastAssignedBeaverName = SanitizeCleanBeaverName(GetStringAt(lastAssignedBeaverNames, i)),
                     LastDeadBeaverName = SanitizeCleanBeaverName(GetStringAt(lastDeadBeaverNames, i)),
+                    LastDeadBeaverDeathReason = TwitchBornTextSanitizer.SanitizePlainText(GetStringAt(lastDeadBeaverDeathReasons, i), 96),
                     QueuedAfterDeath = GetBoolAt(queuedAfterDeath, i),
                     FirstSeenAtUtc = GetStringAt(firstSeenAtUtc, i),
                     LastSeenAtUtc = GetStringAt(lastSeenAtUtc, i),
@@ -1945,6 +1995,71 @@ namespace TwitchBorn.Registry
             }
 
             return "your beaver";
+        }
+
+        private static string GetDeathReason(Character character)
+        {
+            if (character == null)
+            {
+                return "";
+            }
+
+            NeedManager needManager;
+
+            if (!character.TryGetComponent(out needManager))
+            {
+                return "";
+            }
+
+            foreach (var needSpec in needManager.NeedSpecs)
+            {
+                if (needSpec == null || string.IsNullOrEmpty(needSpec.Id))
+                {
+                    continue;
+                }
+
+                var lethalNeedSpec = needSpec.GetSpec<LethalNeedSpec>();
+
+                if (lethalNeedSpec == null || !needManager.NeedIsAtMinimumPoints(needSpec.Id))
+                {
+                    continue;
+                }
+
+                var deathMessage = lethalNeedSpec.DeathMessage.Value;
+                var safeDeathMessage = TwitchBornTextSanitizer.SanitizePlainText(deathMessage, 96);
+
+                if (!string.IsNullOrEmpty(safeDeathMessage))
+                {
+                    return safeDeathMessage;
+                }
+            }
+
+            return "";
+        }
+
+        private string GetPendingDeathReason(Character character)
+        {
+            if (character == null)
+            {
+                return "";
+            }
+
+            var entityId = GetEntityId(character);
+
+            if (entityId == Guid.Empty)
+            {
+                return "";
+            }
+
+            string deathReason;
+
+            if (!_pendingDeathReasonsByEntityId.TryGetValue(entityId, out deathReason))
+            {
+                return "";
+            }
+
+            _pendingDeathReasonsByEntityId.Remove(entityId);
+            return deathReason ?? "";
         }
 
         private static string GetCharacterName(Character character)
