@@ -17,14 +17,9 @@ namespace TwitchBorn.Core
 
         public static string SanitizePlainText(string value, int maxLength)
         {
-            var sanitized = CleanSingleLine(StripRichText(ReplaceHyperlinks(value)));
+            var sanitized = CleanSingleLine(RemoveEmojis(StripRichText(ReplaceHyperlinks(value))));
 
-            if (maxLength >= 0 && sanitized.Length > maxLength)
-            {
-                sanitized = sanitized.Substring(0, maxLength);
-            }
-
-            return sanitized;
+            return TruncateSafely(sanitized, maxLength);
         }
 
         public static string SanitizeViewerText(
@@ -32,10 +27,11 @@ namespace TwitchBorn.Core
             string[] blacklistedTerms)
         {
             return CleanSingleLine(
-                StripRichText(
-                    ReplaceBlacklistedTerms(
-                        ReplaceHyperlinks(value),
-                        blacklistedTerms)));
+                RemoveEmojis(
+                    StripRichText(
+                        ReplaceBlacklistedTerms(
+                            ReplaceHyperlinks(value),
+                            blacklistedTerms))));
         }
 
         public static string SanitizeBeaverEntityName(string value, int maxVisibleLength)
@@ -54,12 +50,9 @@ namespace TwitchBorn.Core
                 nameText = nameText.TrimStart();
             }
 
-            var plainName = CleanSingleLine(StripRichText(ReplaceHyperlinks(nameText)));
-
-            if (maxVisibleLength >= 0 && plainName.Length > maxVisibleLength)
-            {
-                plainName = plainName.Substring(0, maxVisibleLength);
-            }
+            var plainName = TruncateSafely(
+                CleanSingleLine(RemoveEmojis(StripRichText(ReplaceHyperlinks(nameText)))),
+                maxVisibleLength);
 
             if (string.IsNullOrEmpty(plainName))
             {
@@ -90,14 +83,9 @@ namespace TwitchBorn.Core
                 nameText = nameText.TrimStart();
             }
 
-            var sanitized = CleanSingleLine(StripRichText(ReplaceHyperlinks(nameText)));
+            var sanitized = CleanSingleLine(RemoveEmojis(StripRichText(ReplaceHyperlinks(nameText))));
 
-            if (maxLength >= 0 && sanitized.Length > maxLength)
-            {
-                sanitized = sanitized.Substring(0, maxLength);
-            }
-
-            return sanitized;
+            return TruncateSafely(sanitized, maxLength);
         }
 
         public static string ReplaceHyperlinks(string value)
@@ -160,6 +148,48 @@ namespace TwitchBorn.Core
             return builder.ToString();
         }
 
+        public static string RemoveEmojis(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return "";
+            }
+
+            var builder = new StringBuilder(value.Length);
+            var index = 0;
+
+            while (index < value.Length)
+            {
+                int nextIndex;
+
+                if (TrySkipKeycapEmoji(value, index, out nextIndex))
+                {
+                    index = nextIndex;
+                    continue;
+                }
+
+                int charLength;
+                var codePoint = ReadCodePoint(value, index, out charLength);
+
+                if (IsEmojiCodePoint(codePoint))
+                {
+                    index = SkipEmojiSequenceTail(value, index + charLength);
+                    continue;
+                }
+
+                if (IsEmojiSequenceCodePoint(codePoint))
+                {
+                    index += charLength;
+                    continue;
+                }
+
+                builder.Append(value, index, charLength);
+                index += charLength;
+            }
+
+            return builder.ToString();
+        }
+
         public static bool TryExtractLeadingHexColorTag(
             string value,
             out string colorTag,
@@ -210,6 +240,153 @@ namespace TwitchBorn.Core
             }
 
             return sanitized.Trim();
+        }
+
+        private static string TruncateSafely(string value, int maxLength)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return "";
+            }
+
+            if (maxLength < 0 || value.Length <= maxLength)
+            {
+                return value;
+            }
+
+            if (maxLength == 0)
+            {
+                return "";
+            }
+
+            var length = maxLength;
+
+            if (char.IsHighSurrogate(value[length - 1]))
+            {
+                length--;
+            }
+
+            return length <= 0 ? "" : value.Substring(0, length);
+        }
+
+        private static bool TrySkipKeycapEmoji(
+            string value,
+            int startIndex,
+            out int nextIndex)
+        {
+            nextIndex = startIndex;
+
+            if (startIndex < 0 || startIndex >= value.Length)
+            {
+                return false;
+            }
+
+            var first = value[startIndex];
+
+            if (!IsKeycapBase(first))
+            {
+                return false;
+            }
+
+            var index = startIndex + 1;
+
+            if (index < value.Length)
+            {
+                int charLength;
+                var codePoint = ReadCodePoint(value, index, out charLength);
+
+                if (IsVariationSelector(codePoint))
+                {
+                    index += charLength;
+                }
+            }
+
+            if (index >= value.Length)
+            {
+                return false;
+            }
+
+            int keycapLength;
+
+            if (ReadCodePoint(value, index, out keycapLength) != 0x20E3)
+            {
+                return false;
+            }
+
+            nextIndex = index + keycapLength;
+            return true;
+        }
+
+        private static int SkipEmojiSequenceTail(string value, int index)
+        {
+            while (index < value.Length)
+            {
+                int charLength;
+                var codePoint = ReadCodePoint(value, index, out charLength);
+
+                if (IsEmojiSequenceCodePoint(codePoint))
+                {
+                    index += charLength;
+                    continue;
+                }
+
+                if (codePoint == 0x200D)
+                {
+                    index += charLength;
+
+                    if (index < value.Length)
+                    {
+                        int joinedLength;
+                        ReadCodePoint(value, index, out joinedLength);
+                        index += joinedLength;
+                    }
+
+                    continue;
+                }
+
+                return index;
+            }
+
+            return index;
+        }
+
+        private static int ReadCodePoint(string value, int index, out int charLength)
+        {
+            if (index + 1 < value.Length && char.IsHighSurrogate(value[index]) && char.IsLowSurrogate(value[index + 1]))
+            {
+                charLength = 2;
+                return char.ConvertToUtf32(value[index], value[index + 1]);
+            }
+
+            charLength = 1;
+            return value[index];
+        }
+
+        private static bool IsEmojiCodePoint(int codePoint)
+        {
+            return (codePoint >= 0x1F000 && codePoint <= 0x1FAFF)
+                || (codePoint >= 0x2600 && codePoint <= 0x27BF);
+        }
+
+        private static bool IsEmojiSequenceCodePoint(int codePoint)
+        {
+            return IsVariationSelector(codePoint)
+                || (codePoint >= 0x1F3FB && codePoint <= 0x1F3FF)
+                || codePoint == 0x20E3;
+        }
+
+        private static bool IsVariationSelector(int codePoint)
+        {
+            return codePoint == 0xFE0E
+                || codePoint == 0xFE0F
+                || (codePoint >= 0xE0100 && codePoint <= 0xE01EF);
+        }
+
+        private static bool IsKeycapBase(char value)
+        {
+            return value == '#'
+                || value == '*'
+                || (value >= '0' && value <= '9');
         }
 
         private static string ReplaceBlacklistedTerm(string value, string term)
